@@ -13,14 +13,15 @@ class ExchangeRateService:
     def __init__(self):
         """Inicializa el servicio de tasas de cambio"""
         self.db = DatabaseManager()
-        self.tasa_predeterminada = 350.0  # Valor predeterminado
+        self.tasa_predeterminada_usd = 350.0  # Valor predeterminado
+        self.tasa_predeterminada_eur = 350.0  # Valor predeterminado
     
-    def obtener_tasa_actual(self) -> float:
+    def obtener_tasas_actuales(self):
         """
-        Obtiene la tasa de cambio actual (USD a CUP)
+        Obtiene las tasas de cambio actuales (USD y EUR a CUP)
         
         Returns:
-            Tasa de cambio actual o valor predeterminado si no hay datos
+            Diccionario con las tasas actuales
         """
         try:
             # Obtener la fecha actual
@@ -29,43 +30,66 @@ class ExchangeRateService:
             # Conectar a la base de datos
             self.db.connect()
             
-            # Intentar obtener la tasa para la fecha actual
+            # Intentar obtener las tasas para la fecha actual
             resultado = self.db.fetch_one(
-                "SELECT valor FROM tasa_cambio WHERE fecha = ?",
+                "SELECT usd_valor, eur_valor FROM tasa_cambio WHERE fecha = ?",
                 (fecha_hoy,)
             )
             
-            # Si no hay tasa para hoy, obtener la más reciente
+            # Si no hay tasas para hoy, obtener las más recientes
             if not resultado:
                 resultado = self.db.fetch_one(
-                    "SELECT valor FROM tasa_cambio ORDER BY fecha DESC LIMIT 1"
+                    "SELECT usd_valor, eur_valor FROM tasa_cambio ORDER BY fecha DESC LIMIT 1"
                 )
             
             self.db.disconnect()
             
-            # Devolver el valor o el predeterminado
+            # Devolver los valores o los predeterminados
             if resultado:
-                return resultado[0]
+                return {
+                    'usd': resultado[0],
+                    'eur': resultado[1]
+                }
             
-            return self.tasa_predeterminada
+            return {
+                'usd': self.tasa_predeterminada_usd,
+                'eur': self.tasa_predeterminada_eur
+            }
             
         except Exception as e:
-            print(f"Error al obtener tasa de cambio: {e}")
-            return self.tasa_predeterminada
+            print(f"Error al obtener tasas de cambio: {e}")
+            return {
+                'usd': self.tasa_predeterminada_usd,
+                'eur': self.tasa_predeterminada_eur
+            }
     
-    def actualizar_tasa(self, nueva_tasa: float) -> bool:
+    def obtener_tasa_actual(self, moneda="usd"):
         """
-        Actualiza la tasa de cambio para la fecha actual
+        Obtiene la tasa de cambio actual para una moneda específica
         
         Args:
-            nueva_tasa: Nuevo valor de la tasa de cambio
+            moneda: 'usd' o 'eur'
+            
+        Returns:
+            Tasa de cambio actual
+        """
+        tasas = self.obtener_tasas_actuales()
+        return tasas.get(moneda.lower(), self.tasa_predeterminada_usd)
+    
+    def actualizar_tasas(self, tasa_usd, tasa_eur):
+        """
+        Actualiza las tasas de cambio para la fecha actual
+        
+        Args:
+            tasa_usd: Nuevo valor de la tasa USD a CUP
+            tasa_eur: Nuevo valor de la tasa EUR a CUP
             
         Returns:
             True si la actualización fue exitosa, False en caso contrario
         """
         try:
-            # Validar tasa
-            if nueva_tasa <= 0:
+            # Validar tasas
+            if tasa_usd <= 0 or tasa_eur <= 0:
                 return False
                 
             # Obtener la fecha actual
@@ -74,8 +98,8 @@ class ExchangeRateService:
             # Insertar o actualizar en la base de datos
             self.db.connect()
             self.db.execute(
-                "INSERT OR REPLACE INTO tasa_cambio (fecha, valor) VALUES (?, ?)",
-                (fecha_hoy, nueva_tasa)
+                "INSERT OR REPLACE INTO tasa_cambio (fecha, usd_valor, eur_valor) VALUES (?, ?, ?)",
+                (fecha_hoy, tasa_usd, tasa_eur)
             )
             self.db.commit()
             self.db.disconnect()
@@ -83,57 +107,25 @@ class ExchangeRateService:
             return True
             
         except Exception as e:
-            print(f"Error al actualizar tasa de cambio: {e}")
+            print(f"Error al actualizar tasas de cambio: {e}")
             return False
     
-    def obtener_historial_tasas(self, limite: int = 30) -> list:
+    def actualizar_tasa(self, nueva_tasa, moneda="usd"):
         """
-        Obtiene el historial de tasas de cambio
+        Actualiza la tasa de cambio para una moneda específica
         
         Args:
-            limite: Número máximo de registros a devolver
+            nueva_tasa: Nuevo valor de la tasa
+            moneda: 'usd' o 'eur'
             
         Returns:
-            Lista de tuplas (fecha, valor) ordenadas por fecha descendente
+            True si la actualización fue exitosa, False en caso contrario
         """
-        try:
-            self.db.connect()
-            resultado = self.db.fetch_all(
-                "SELECT fecha, valor FROM tasa_cambio ORDER BY fecha DESC LIMIT ?",
-                (limite,)
-            )
-            self.db.disconnect()
-            
-            return resultado
-            
-        except Exception as e:
-            print(f"Error al obtener historial de tasas: {e}")
-            return []
-    
-    def obtener_tasa_por_fecha(self, fecha: str) -> float:
-        """
-        Obtiene la tasa de cambio para una fecha específica
+        tasas = self.obtener_tasas_actuales()
         
-        Args:
-            fecha: Fecha en formato 'YYYY-MM-DD'
-            
-        Returns:
-            Tasa de cambio para la fecha especificada o la tasa actual si no hay datos
-        """
-        try:
-            self.db.connect()
-            resultado = self.db.fetch_one(
-                "SELECT valor FROM tasa_cambio WHERE fecha = ?",
-                (fecha,)
-            )
-            self.db.disconnect()
-            
-            if resultado:
-                return resultado[0]
-            
-            # Si no hay tasa para esa fecha, devolver la tasa actual
-            return self.obtener_tasa_actual()
-            
-        except Exception as e:
-            print(f"Error al obtener tasa por fecha: {e}")
-            return self.tasa_predeterminada
+        if moneda.lower() == "usd":
+            return self.actualizar_tasas(nueva_tasa, tasas['eur'])
+        elif moneda.lower() == "eur":
+            return self.actualizar_tasas(tasas['usd'], nueva_tasa)
+        else:
+            return False

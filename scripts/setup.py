@@ -56,8 +56,8 @@ def setup_database(db_path=None, force=False):
         print("Insertar tasa de cambio predeterminada...")
         from datetime import date
         db_manager.execute(
-            "INSERT OR REPLACE INTO tasa_cambio (fecha, valor) VALUES (?, ?)",
-            (date.today().isoformat(), 24.0)
+            "INSERT OR REPLACE INTO tasa_cambio (fecha, usd_valor, eur_valor) VALUES (?, ?, ?)",
+            (date.today().isoformat(), 350.0, 350.0)  # Valores predeterminados de 350 para USD y EUR
         )
         
         db_manager.commit()

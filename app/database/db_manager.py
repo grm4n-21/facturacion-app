@@ -123,7 +123,8 @@ class DatabaseManager:
         self.execute('''
         CREATE TABLE IF NOT EXISTS tasa_cambio (
             fecha TEXT PRIMARY KEY,
-            valor REAL NOT NULL
+            usd_valor REAL NOT NULL,
+            eur_valor REAL NOT NULL
         )
         ''')
         
@@ -133,10 +134,14 @@ class DatabaseManager:
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             orden_id TEXT NOT NULL,
             monto REAL NOT NULL,
-            moneda TEXT NOT NULL,
+            moneda TEXT NOT NULL,          -- 'USD', 'EUR', 'CUP'
             monto_equivalente REAL NOT NULL,
             pago_usd REAL DEFAULT 0,
+            pago_eur REAL DEFAULT 0,
             pago_cup REAL DEFAULT 0,
+            pago_transferencia REAL DEFAULT 0,
+            transferencia_id TEXT,         -- ID de transferencia
+            tasa_usada REAL NOT NULL,      -- Tasa de cambio usada al momento de la factura
             fecha TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             dia_id INTEGER,
             cerrada INTEGER DEFAULT 0
@@ -149,11 +154,15 @@ class DatabaseManager:
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             fecha TEXT NOT NULL,
             total_usd REAL NOT NULL,
+            total_eur REAL NOT NULL,
             total_cup REAL NOT NULL,
+            total_transferencia REAL NOT NULL,
             num_facturas INTEGER NOT NULL,
             efectivo_contado_usd REAL DEFAULT 0,
+            efectivo_contado_eur REAL DEFAULT 0,
             efectivo_contado_cup REAL DEFAULT 0,
             diferencia_usd REAL DEFAULT 0,
+            diferencia_eur REAL DEFAULT 0,
             diferencia_cup REAL DEFAULT 0,
             fecha_cierre TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )

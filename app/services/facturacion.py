@@ -20,55 +20,75 @@ class FacturacionService:
         self.db = DatabaseManager()
         self.exchange_service = ExchangeRateService()
     
-    def registrar_factura(self, orden_id: str, monto: float, moneda: str, pago_usd: float = 0, pago_cup: float = 0) -> bool:
+    def registrar_factura(self, orden_id: str, monto: float, moneda: str, 
+                     pago_usd: float = 0, pago_eur: float = 0, pago_cup: float = 0, 
+                     pago_transferencia: float = 0, transferencia_id: str = None) -> bool:
         """
         Registra una nueva factura en el sistema con pagos mixtos
         
         Args:
             orden_id: Identificador de la orden
             monto: Monto total de la factura
-            moneda: Moneda principal de la factura ('USD' o 'CUP')
+            moneda: Moneda principal de la factura ('USD', 'EUR' o 'CUP')
             pago_usd: Monto pagado en USD
+            pago_eur: Monto pagado en EUR
             pago_cup: Monto pagado en CUP
+            pago_transferencia: Monto pagado por transferencia
+            transferencia_id: ID de la transferencia
             
         Returns:
             True si la factura se registró correctamente, False en caso contrario
         """
         try:
             # Validar datos
-            if not orden_id or monto <= 0 or moneda not in ['USD', 'CUP']:
+            if not orden_id or monto <= 0 or moneda not in ['USD', 'EUR', 'CUP']:
                 return False
             
-            # Obtener tasa de cambio
-            tasa = self.exchange_service.obtener_tasa_actual()
+            # Obtener tasas de cambio
+            tasas = self.exchange_service.obtener_tasas_actuales()
+            tasa_usd = tasas['usd']
+            tasa_eur = tasas['eur']
             
             # Calcular monto equivalente en USD (para estandarizar)
             if moneda == "USD":
                 monto_equivalente = monto
+                tasa_usada = tasa_usd
+            elif moneda == "EUR":
+                monto_equivalente = monto * (tasa_eur / tasa_usd)  # Convertir EUR a USD
+                tasa_usada = tasa_eur
             else:  # CUP
-                monto_equivalente = monto / tasa
+                monto_equivalente = monto / tasa_usd
+                tasa_usada = tasa_usd
             
             # Verificar que los pagos son válidos
-            if pago_usd < 0 or pago_cup < 0:
+            if pago_usd < 0 or pago_eur < 0 or pago_cup < 0 or pago_transferencia < 0:
+                return False
+            
+            # Si hay pago por transferencia, debe tener ID
+            if pago_transferencia > 0 and not transferencia_id:
                 return False
             
             # Verificar que los pagos cubren el monto total
+            total_en_moneda_principal = 0
+            
             if moneda == "USD":
-                total_pagado = pago_usd + (pago_cup / tasa)
+                total_en_moneda_principal = pago_usd + (pago_eur * tasa_eur / tasa_usd) + (pago_cup / tasa_usd) + (pago_transferencia / tasa_usd)
+            elif moneda == "EUR":
+                total_en_moneda_principal = pago_eur + (pago_usd * tasa_usd / tasa_eur) + (pago_cup / tasa_eur) + (pago_transferencia / tasa_eur)
             else:  # CUP
-                total_pagado = pago_cup + (pago_usd * tasa)
+                total_en_moneda_principal = pago_cup + (pago_usd * tasa_usd) + (pago_eur * tasa_eur) + pago_transferencia
             
             # Permitir un pequeño margen de error por redondeo
-            if total_pagado < monto - 0.01:
-                print(f"Pago insuficiente: {total_pagado} vs {monto}")
+            if total_en_moneda_principal < monto - 0.01:
+                print(f"Pago insuficiente: {total_en_moneda_principal} vs {monto}")
                 return False
             
             # Insertar en la base de datos
             self.db.connect()
             self.db.execute(
-                "INSERT INTO facturas (orden_id, monto, moneda, monto_equivalente, pago_usd, pago_cup) "
-                "VALUES (?, ?, ?, ?, ?, ?)",
-                (orden_id, monto, moneda, monto_equivalente, pago_usd, pago_cup)
+                "INSERT INTO facturas (orden_id, monto, moneda, monto_equivalente, pago_usd, pago_eur, pago_cup, pago_transferencia, transferencia_id, tasa_usada) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                (orden_id, monto, moneda, monto_equivalente, pago_usd, pago_eur, pago_cup, pago_transferencia, transferencia_id, tasa_usada)
             )
             self.db.commit()
             self.db.disconnect()

@@ -8,8 +8,9 @@ Gestiona la interfaz para escaneo de códigos y registro de facturas.
 from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QFormLayout, 
                              QLabel, QLineEdit, QPushButton, QComboBox, 
                              QTableWidget, QTableWidgetItem, QGroupBox,
-                             QMessageBox, QInputDialog, QHeaderView)
-from PyQt6.QtCore import Qt, pyqtSlot
+                             QMessageBox, QInputDialog, QHeaderView, QCheckBox,
+                             QScrollArea, QSizePolicy)
+from PyQt6.QtCore import Qt, pyqtSlot, Qt
 import datetime
 
 from app.ui.components.scanner import ScannerWidget
@@ -39,32 +40,61 @@ class FacturacionTab(QWidget):
         # Layout principal
         main_layout = QVBoxLayout(self)
         
+        # Crear un área de desplazamiento
+        scroll_area = QScrollArea()
+        scroll_area.setWidgetResizable(True)
+        scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        scroll_area.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        
+        # Crear un widget contenedor para poner dentro del área de desplazamiento
+        container_widget = QWidget()
+        container_layout = QVBoxLayout(container_widget)
+        
         # Título/Fecha
         fecha_actual = datetime.date.today().strftime("%d/%m/%Y")
         titulo_label = QLabel(f"FACTURACIÓN - {fecha_actual}")
         titulo_label.setStyleSheet("font-size: 16px; font-weight: bold; margin-bottom: 10px;")
         titulo_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        main_layout.addWidget(titulo_label)
+        container_layout.addWidget(titulo_label)
         
-        # Sección 1: Tasa de cambio
-        tasa_group = QGroupBox("Tasa de Cambio")
+        # Sección 1: Tasas de Cambio
+        tasa_group = QGroupBox("Tasas de Cambio")
         tasa_group.setStyleSheet("QGroupBox { font-weight: bold; }")
-        tasa_layout = QHBoxLayout()
+        tasa_layout = QVBoxLayout()
         
-        self.tasa_label = QLabel("USD 1 = CUP --")
-        self.tasa_label.setStyleSheet("font-size: 14px; font-weight: bold;")
+        # Tasa USD
+        tasa_usd_layout = QHBoxLayout()
+        self.tasa_usd_label = QLabel("USD 1 = CUP --")
+        self.tasa_usd_label.setStyleSheet("font-size: 14px; font-weight: bold;")
         
-        tasa_actualizar_btn = QPushButton("Actualizar Tasa")
-        tasa_actualizar_btn.clicked.connect(self.mostrar_dialogo_tasa)
+        tasa_usd_btn = QPushButton("Actualizar")
+        tasa_usd_btn.clicked.connect(lambda: self.mostrar_dialogo_tasa("usd"))
         
-        tasa_layout.addWidget(QLabel("Tasa actual:"))
-        tasa_layout.addWidget(self.tasa_label)
-        tasa_layout.addStretch()
-        tasa_layout.addWidget(tasa_actualizar_btn)
+        tasa_usd_layout.addWidget(QLabel("Tasa USD:"))
+        tasa_usd_layout.addWidget(self.tasa_usd_label)
+        tasa_usd_layout.addStretch()
+        tasa_usd_layout.addWidget(tasa_usd_btn)
+        
+        # Tasa EUR
+        tasa_eur_layout = QHBoxLayout()
+        self.tasa_eur_label = QLabel("EUR 1 = CUP --")
+        self.tasa_eur_label.setStyleSheet("font-size: 14px; font-weight: bold;")
+        
+        tasa_eur_btn = QPushButton("Actualizar")
+        tasa_eur_btn.clicked.connect(lambda: self.mostrar_dialogo_tasa("eur"))
+        
+        tasa_eur_layout.addWidget(QLabel("Tasa EUR:"))
+        tasa_eur_layout.addWidget(self.tasa_eur_label)
+        tasa_eur_layout.addStretch()
+        tasa_eur_layout.addWidget(tasa_eur_btn)
+        
+        tasa_layout.addLayout(tasa_usd_layout)
+        tasa_layout.addLayout(tasa_eur_layout)
         
         tasa_group.setLayout(tasa_layout)
-        main_layout.addWidget(tasa_group)
-                # Sección 2: Datos de la factura
+        container_layout.addWidget(tasa_group)
+        
+        # Sección 2: Datos de la factura
         factura_group = QGroupBox("Datos de Factura")
         factura_group.setStyleSheet("QGroupBox { font-weight: bold; }")
         factura_layout = QFormLayout()
@@ -91,7 +121,7 @@ class FacturacionTab(QWidget):
         self.monto_input.textChanged.connect(self.actualizar_monto_equivalente)
         
         self.moneda_combo = QComboBox()
-        self.moneda_combo.addItems(["USD", "CUP"])
+        self.moneda_combo.addItems(["USD", "EUR", "CUP"])  # Añadido EUR
         self.moneda_combo.currentTextChanged.connect(self.actualizar_monto_equivalente)
         
         monto_layout.addWidget(self.monto_input)
@@ -106,29 +136,60 @@ class FacturacionTab(QWidget):
         factura_layout.addRow("", self.equivalente_label)
         
         factura_group.setLayout(factura_layout)
-        main_layout.addWidget(factura_group)
-
-            # Sección 3: Forma de Pago
+        container_layout.addWidget(factura_group)
+        
+        # Sección 3: Forma de Pago
         pago_group = QGroupBox("Forma de Pago")
         pago_group.setStyleSheet("QGroupBox { font-weight: bold; }")
         pago_layout = QFormLayout()
         
+        # Pagos en efectivo
         self.pago_usd_input = QLineEdit()
         self.pago_usd_input.setPlaceholderText("0.00")
         self.pago_usd_input.textChanged.connect(self.verificar_balance)
-        pago_layout.addRow("Recibido en USD:", self.pago_usd_input)
+        pago_layout.addRow("Efectivo USD:", self.pago_usd_input)
+        
+        self.pago_eur_input = QLineEdit()  # Añadido EUR
+        self.pago_eur_input.setPlaceholderText("0.00")
+        self.pago_eur_input.textChanged.connect(self.verificar_balance)
+        pago_layout.addRow("Efectivo EUR:", self.pago_eur_input)
         
         self.pago_cup_input = QLineEdit()
         self.pago_cup_input.setPlaceholderText("0.00")
         self.pago_cup_input.textChanged.connect(self.verificar_balance)
-        pago_layout.addRow("Recibido en CUP:", self.pago_cup_input)
+        pago_layout.addRow("Efectivo CUP:", self.pago_cup_input)
         
+        # Transferencia
+        transferencia_layout = QVBoxLayout()
+        
+        transfer_monto_layout = QHBoxLayout()
+        self.pago_transferencia_input = QLineEdit()
+        self.pago_transferencia_input.setPlaceholderText("0.00")
+        self.pago_transferencia_input.textChanged.connect(self.verificar_balance)
+        self.pago_transferencia_input.setEnabled(False)  # Deshabilitado inicialmente
+        
+        self.pago_transferencia_check = QCheckBox("Transferencia CUP")
+        self.pago_transferencia_check.stateChanged.connect(self.habilitar_transferencia)
+        
+        transfer_monto_layout.addWidget(self.pago_transferencia_check)
+        transfer_monto_layout.addWidget(self.pago_transferencia_input)
+        
+        self.transferencia_id_input = QLineEdit()
+        self.transferencia_id_input.setPlaceholderText("ID o referencia de la transferencia")
+        self.transferencia_id_input.setEnabled(False)
+        
+        transferencia_layout.addLayout(transfer_monto_layout)
+        transferencia_layout.addWidget(self.transferencia_id_input)
+        
+        pago_layout.addRow("Transferencia:", transferencia_layout)
+        
+        # Balance
         self.balance_label = QLabel("Balance: --")
         self.balance_label.setStyleSheet("font-weight: bold;")
         pago_layout.addRow("", self.balance_label)
         
         pago_group.setLayout(pago_layout)
-        main_layout.addWidget(pago_group)
+        container_layout.addWidget(pago_group)
         
         # Botón de registrar
         registrar_btn = QPushButton("REGISTRAR FACTURA")
@@ -146,34 +207,57 @@ class FacturacionTab(QWidget):
             }
         """)
         registrar_btn.clicked.connect(self.registrar_factura)
-        main_layout.addWidget(registrar_btn)
-
-                # Tabla de facturas recientes
+        container_layout.addWidget(registrar_btn)
+        
+        # Tabla de facturas recientes con área de desplazamiento propia
         facturas_group = QGroupBox("Facturas Recientes")
         facturas_group.setStyleSheet("QGroupBox { font-weight: bold; }")
         facturas_layout = QVBoxLayout()
         
+        # Configurar una altura mínima para la tabla
         self.facturas_table = QTableWidget()
-        self.facturas_table.setColumnCount(7)
+        self.facturas_table.setMinimumHeight(250)  # Altura mínima para la tabla
+        self.facturas_table.setColumnCount(9)
         self.facturas_table.setHorizontalHeaderLabels([
-            "ID Orden", "Monto", "Moneda", "Pago USD", "Pago CUP", 
-            "Equivalente (USD)", "Fecha"
+            "ID Orden", "Monto", "Moneda", "USD", "EUR", "CUP", "Transfer", 
+            "Equivalente", "Fecha"
         ])
+        
+        # Mejorar la visualización de la tabla
         self.facturas_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
         self.facturas_table.setAlternatingRowColors(True)
+        self.facturas_table.setShowGrid(True)
+        self.facturas_table.setGridStyle(Qt.PenStyle.SolidLine)
         
         facturas_layout.addWidget(self.facturas_table)
         facturas_group.setLayout(facturas_layout)
-        main_layout.addWidget(facturas_group)
+        container_layout.addWidget(facturas_group)
+        
+        # Configurar el scroll area
+        scroll_area.setWidget(container_widget)
+        main_layout.addWidget(scroll_area)
         
         # Dar foco al primer campo
         self.orden_id_input.setFocus()
 
     def cargar_tasa_actual(self):
-        """Carga y muestra la tasa de cambio actual"""
-        tasa = self.exchange_service.obtener_tasa_actual()
-        self.tasa_label.setText(f"USD 1 = CUP {tasa:.2f}")
-    
+        """Carga y muestra las tasas de cambio actuales"""
+        tasas = self.exchange_service.obtener_tasas_actuales()
+        self.tasa_usd_label.setText(f"USD 1 = CUP {tasas['usd']:.2f}")
+        self.tasa_eur_label.setText(f"EUR 1 = CUP {tasas['eur']:.2f}")
+
+    def habilitar_transferencia(self, state):
+        """Habilita o deshabilita los campos de transferencia según el estado del checkbox"""
+        is_checked = state == Qt.CheckState.Checked
+        self.pago_transferencia_input.setEnabled(is_checked)
+        self.transferencia_id_input.setEnabled(is_checked)
+        
+        if not is_checked:
+            self.pago_transferencia_input.clear()
+            self.transferencia_id_input.clear()
+        else:
+            self.pago_transferencia_input.setFocus()
+
     def verificar_balance(self):
         """Verifica si el balance de pago es correcto"""
         try:
@@ -183,58 +267,94 @@ class FacturacionTab(QWidget):
                 
             monto = float(self.monto_input.text())
             moneda = self.moneda_combo.currentText()
-            tasa = self.exchange_service.obtener_tasa_actual()
             
+            # Obtener tasas de cambio
+            tasas = self.exchange_service.obtener_tasas_actuales()
+            tasa_usd = tasas['usd']
+            tasa_eur = tasas['eur']
+            
+            # Obtener pagos
             pago_usd = float(self.pago_usd_input.text() or 0)
+            pago_eur = float(self.pago_eur_input.text() or 0)
             pago_cup = float(self.pago_cup_input.text() or 0)
+            
+            # Transferencia
+            pago_transferencia = 0
+            if self.pago_transferencia_check.isChecked():
+                pago_transferencia = float(self.pago_transferencia_input.text() or 0)
             
             # Calcular total en la moneda de la factura
             if moneda == "USD":
-                # Convertir CUP a USD
-                pago_cup_en_usd = pago_cup / tasa
-                total_recibido = pago_usd + pago_cup_en_usd
+                # Convertir todas las monedas a USD
+                pago_eur_en_usd = pago_eur * (tasa_eur / tasa_usd)
+                pago_cup_en_usd = pago_cup / tasa_usd
+                pago_transferencia_en_usd = pago_transferencia / tasa_usd
+                
+                total_recibido = pago_usd + pago_eur_en_usd + pago_cup_en_usd + pago_transferencia_en_usd
                 balance = total_recibido - monto
                 moneda_balance = "USD"
+                
+            elif moneda == "EUR":
+                # Convertir todas las monedas a EUR
+                pago_usd_en_eur = pago_usd * (tasa_usd / tasa_eur)
+                pago_cup_en_eur = pago_cup / tasa_eur
+                pago_transferencia_en_eur = pago_transferencia / tasa_eur
+                
+                total_recibido = pago_eur + pago_usd_en_eur + pago_cup_en_eur + pago_transferencia_en_eur
+                balance = total_recibido - monto
+                moneda_balance = "EUR"
+                
             else:  # CUP
-                # Convertir USD a CUP
-                pago_usd_en_cup = pago_usd * tasa
-                total_recibido = pago_cup + pago_usd_en_cup
+                # Convertir todas las monedas a CUP
+                pago_usd_en_cup = pago_usd * tasa_usd
+                pago_eur_en_cup = pago_eur * tasa_eur
+                
+                total_recibido = pago_cup + pago_usd_en_cup + pago_eur_en_cup + pago_transferencia
                 balance = total_recibido - monto
                 moneda_balance = "CUP"
             
             # Mostrar balance
             if abs(balance) < 0.01:  # Si está cerca de cero (por redondeo)
-                self.balance_label.setText("Balance: Correcto")
-                self.balance_label.setStyleSheet("color: green;")
+                self.balance_label.setText("Balance: Correcto ✓")
+                self.balance_label.setStyleSheet("color: green; font-weight: bold;")
             elif balance > 0:
                 self.balance_label.setText(f"Balance: Cambio de {balance:.2f} {moneda_balance}")
-                self.balance_label.setStyleSheet("color: blue;")
+                self.balance_label.setStyleSheet("color: blue; font-weight: bold;")
             else:
                 self.balance_label.setText(f"Balance: Faltan {-balance:.2f} {moneda_balance}")
-                self.balance_label.setStyleSheet("color: red;")
-                
+                self.balance_label.setStyleSheet("color: red; font-weight: bold;")
+                    
         except ValueError:
             self.balance_label.setText("Balance: Error en valores")
             self.balance_label.setStyleSheet("color: red;")
 
-    def mostrar_dialogo_tasa(self):
+    def mostrar_dialogo_tasa(self, moneda="usd"):
         """Muestra un diálogo para actualizar la tasa de cambio"""
-        tasa_actual = self.exchange_service.obtener_tasa_actual()
+        tasas = self.exchange_service.obtener_tasas_actuales()
+        tasa_actual = tasas[moneda.lower()]
+        
+        # Configurar título y mensaje según la moneda
+        if moneda.lower() == "usd":
+            titulo = "Actualizar Tasa USD"
+            mensaje = "Ingrese la nueva tasa (USD 1 = CUP X):"
+        else:
+            titulo = "Actualizar Tasa EUR"
+            mensaje = "Ingrese la nueva tasa (EUR 1 = CUP X):"
+        
         nueva_tasa, ok = QInputDialog.getDouble(
             self, 
-            "Actualizar Tasa de Cambio", 
-            "Ingrese la nueva tasa (USD 1 = CUP X):",
+            titulo, 
+            mensaje,
             tasa_actual,
             0.01, 1000.00, 2
         )
         
         if ok:
-            self.exchange_service.actualizar_tasa(nueva_tasa)
-            self.cargar_tasa_actual()
+            self.exchange_service.actualizar_tasa(nueva_tasa, moneda)
+            self.cargar_tasas_actuales()
             self.actualizar_monto_equivalente()
             QMessageBox.information(self, "Tasa Actualizada", 
-                                f"La tasa de cambio se ha actualizado a: USD 1 = CUP {nueva_tasa:.2f}")
-    
+                                f"La tasa de cambio se ha actualizado: 1 {moneda.upper()} = {nueva_tasa:.2f} CUP")
     def iniciar_escaneo(self):
         """Inicia el proceso de escaneo de código de barras"""
         codigo = self.scanner_service.escanear()
@@ -249,18 +369,26 @@ class FacturacionTab(QWidget):
             if not self.monto_input.text():
                 self.equivalente_label.setText("Equivalente: --")
                 return
-                
+                    
             monto = float(self.monto_input.text())
             moneda = self.moneda_combo.currentText()
-            tasa = self.exchange_service.obtener_tasa_actual()
+            
+            # Obtener tasas actuales
+            tasas = self.exchange_service.obtener_tasas_actuales()
+            tasa_usd = tasas['usd']
+            tasa_eur = tasas['eur']
             
             if moneda == "USD":
-                equivalente = monto * tasa
-                self.equivalente_label.setText(f"Equivalente: {equivalente:.2f} CUP")
+                equivalente_cup = monto * tasa_usd
+                self.equivalente_label.setText(f"Equivalente: {equivalente_cup:.2f} CUP")
+            elif moneda == "EUR":
+                equivalente_cup = monto * tasa_eur
+                self.equivalente_label.setText(f"Equivalente: {equivalente_cup:.2f} CUP")
             else:  # CUP
-                equivalente = monto / tasa
-                self.equivalente_label.setText(f"Equivalente: {equivalente:.2f} USD")
-                
+                equivalente_usd = monto / tasa_usd
+                equivalente_eur = monto / tasa_eur
+                self.equivalente_label.setText(f"Equivalente: {equivalente_usd:.2f} USD | {equivalente_eur:.2f} EUR")
+                    
         except ValueError:
             self.equivalente_label.setText("Equivalente: (valor inválido)")
     
@@ -270,31 +398,61 @@ class FacturacionTab(QWidget):
         if not self.orden_id_input.text():
             QMessageBox.warning(self, "Error", "Debe ingresar el ID de orden")
             return
-            
+                
         try:
             if not self.monto_input.text():
                 QMessageBox.warning(self, "Error", "Debe ingresar el monto")
                 return
-                
+                    
             monto = float(self.monto_input.text())
             if monto <= 0:
                 QMessageBox.warning(self, "Error", "El monto debe ser mayor que cero")
                 return
-                
+                    
             # Obtener valores
             orden_id = self.orden_id_input.text()
             moneda = self.moneda_combo.currentText()
-            pago_usd = float(self.pago_usd_input.text() or 0)
-            pago_cup = float(self.pago_cup_input.text() or 0)
-            tasa = self.exchange_service.obtener_tasa_actual()
             
-            # Verificar que los pagos sean suficientes
+            # Obtener pagos
+            pago_usd = float(self.pago_usd_input.text() or 0)
+            pago_eur = float(self.pago_eur_input.text() or 0)
+            pago_cup = float(self.pago_cup_input.text() or 0)
+            
+            # Transferencia
+            pago_transferencia = 0
+            transferencia_id = None
+            if self.pago_transferencia_check.isChecked():
+                pago_transferencia = float(self.pago_transferencia_input.text() or 0)
+                transferencia_id = self.transferencia_id_input.text()
+                
+                # Validar ID de transferencia si hay monto
+                if pago_transferencia > 0 and not transferencia_id:
+                    QMessageBox.warning(self, "Error", "Debe ingresar el ID de la transferencia")
+                    return
+            
+            # Obtener tasas de cambio
+            tasas = self.exchange_service.obtener_tasas_actuales()
+            tasa_usd = tasas['usd']
+            tasa_eur = tasas['eur']
+            
+            # Verificar que los pagos sean suficientes (mismo cálculo que en verificar_balance)
             if moneda == "USD":
-                pago_cup_en_usd = pago_cup / tasa
-                total_recibido = pago_usd + pago_cup_en_usd
+                pago_eur_en_usd = pago_eur * (tasa_eur / tasa_usd)
+                pago_cup_en_usd = pago_cup / tasa_usd
+                pago_transferencia_en_usd = pago_transferencia / tasa_usd
+                
+                total_recibido = pago_usd + pago_eur_en_usd + pago_cup_en_usd + pago_transferencia_en_usd
+            elif moneda == "EUR":
+                pago_usd_en_eur = pago_usd * (tasa_usd / tasa_eur)
+                pago_cup_en_eur = pago_cup / tasa_eur
+                pago_transferencia_en_eur = pago_transferencia / tasa_eur
+                
+                total_recibido = pago_eur + pago_usd_en_eur + pago_cup_en_eur + pago_transferencia_en_eur
             else:  # CUP
-                pago_usd_en_cup = pago_usd * tasa
-                total_recibido = pago_cup + pago_usd_en_cup
+                pago_usd_en_cup = pago_usd * tasa_usd
+                pago_eur_en_cup = pago_eur * tasa_eur
+                
+                total_recibido = pago_cup + pago_usd_en_cup + pago_eur_en_cup + pago_transferencia
             
             if total_recibido < monto - 0.01:  # Margen para redondeo
                 QMessageBox.warning(self, "Error", "El pago recibido es insuficiente")
@@ -302,7 +460,8 @@ class FacturacionTab(QWidget):
             
             # Usar el servicio de facturación para registrar la factura
             resultado = self.facturacion_service.registrar_factura(
-                orden_id, monto, moneda, pago_usd, pago_cup
+                orden_id, monto, moneda, pago_usd, pago_eur, pago_cup, 
+                pago_transferencia, transferencia_id
             )
             
             if resultado:
@@ -310,7 +469,11 @@ class FacturacionTab(QWidget):
                 self.orden_id_input.clear()
                 self.monto_input.clear()
                 self.pago_usd_input.clear()
+                self.pago_eur_input.clear()
                 self.pago_cup_input.clear()
+                self.pago_transferencia_input.clear()
+                self.transferencia_id_input.clear()
+                self.pago_transferencia_check.setChecked(False)
                 self.equivalente_label.setText("Equivalente: --")
                 self.balance_label.setText("Balance: --")
                 self.balance_label.setStyleSheet("")
@@ -320,17 +483,16 @@ class FacturacionTab(QWidget):
                 
                 # Mensaje de éxito con información sobre cambio si corresponde
                 mensaje = "Factura registrada correctamente"
+                
+                # Calcular cambio a devolver si hay sobrepago
                 if total_recibido > monto + 0.01:  # Hay cambio a devolver
                     cambio = total_recibido - monto
-                    if moneda == "USD":
-                        mensaje += f"\n\nDar cambio: ${cambio:.2f} USD"
-                    else:
-                        mensaje += f"\n\nDar cambio: ${cambio:.2f} CUP"
+                    mensaje += f"\n\nDar cambio: {cambio:.2f} {moneda}"
                     
                 QMessageBox.information(self, "Éxito", mensaje)
             else:
                 QMessageBox.warning(self, "Error", "No se pudo registrar la factura")
-                
+                    
         except ValueError:
             QMessageBox.warning(self, "Error", "Los valores ingresados no son válidos")
     
@@ -351,20 +513,32 @@ class FacturacionTab(QWidget):
             monto_item = QTableWidgetItem(f"{factura.monto:.2f}")
             moneda_item = QTableWidgetItem(factura.moneda)
             
-            # Para los pagos en USD y CUP, necesitamos verificar si esos atributos existen
+            # Para los diferentes tipos de pago
             pago_usd = getattr(factura, 'pago_usd', 0)
+            pago_eur = getattr(factura, 'pago_eur', 0)
             pago_cup = getattr(factura, 'pago_cup', 0)
+            pago_transferencia = getattr(factura, 'pago_transferencia', 0)
             
             pago_usd_item = QTableWidgetItem(f"{pago_usd:.2f}")
+            pago_eur_item = QTableWidgetItem(f"{pago_eur:.2f}")
             pago_cup_item = QTableWidgetItem(f"{pago_cup:.2f}")
+            pago_transferencia_item = QTableWidgetItem(f"{pago_transferencia:.2f}")
+            
             equivalente_item = QTableWidgetItem(f"{factura.monto_equivalente:.2f}")
             fecha_item = QTableWidgetItem(factura.fecha.strftime("%Y-%m-%d %H:%M"))
+            
+            # Alinear números a la derecha
+            for item in [monto_item, pago_usd_item, pago_eur_item, pago_cup_item, 
+                        pago_transferencia_item, equivalente_item]:
+                item.setTextAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
             
             # Añadir items a la tabla
             self.facturas_table.setItem(i, 0, orden_id_item)
             self.facturas_table.setItem(i, 1, monto_item)
             self.facturas_table.setItem(i, 2, moneda_item)
             self.facturas_table.setItem(i, 3, pago_usd_item)
-            self.facturas_table.setItem(i, 4, pago_cup_item)
-            self.facturas_table.setItem(i, 5, equivalente_item)
-            self.facturas_table.setItem(i, 6, fecha_item)
+            self.facturas_table.setItem(i, 4, pago_eur_item)
+            self.facturas_table.setItem(i, 5, pago_cup_item)
+            self.facturas_table.setItem(i, 6, pago_transferencia_item)
+            self.facturas_table.setItem(i, 7, equivalente_item)
+            self.facturas_table.setItem(i, 8, fecha_item)

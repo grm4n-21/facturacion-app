@@ -37,9 +37,17 @@ class Factura:
     id: Optional[int]
     orden_id: str
     monto: float
-    moneda: str  # "USD" o "CUP"
+    moneda: str  # "USD", "EUR" o "CUP"
     monto_equivalente: float  # Siempre en USD para facilitar reportes
     fecha: datetime
+    pago_usd: float = 0.0
+    pago_eur: float = 0.0
+    pago_cup: float = 0.0
+    pago_transferencia: float = 0.0
+    transferencia_id: Optional[str] = None
+    tasa_usada: float = 0.0
+    cerrada: bool = False
+    dia_id: Optional[int] = None
     
     @classmethod
     def from_db_row(cls, row):
