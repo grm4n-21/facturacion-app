@@ -11,11 +11,12 @@ from PyQt6.QtCore import Qt
 import datetime
 
 from app.services.cierre_dia import CierreDiaService
+from app.services.exchange_rate import ExchangeRateService  # Añadir esta importación
 
 class CierreDiaDialog(QDialog):
     """Diálogo para confirmar el cierre del día y verificar los montos"""
     
-    def __init__(self, parent=None):
+    def __init__(self, parent=None, exchange_service=None):  # Modificar constructor
         super().__init__(parent)
         
         self.setWindowTitle("Cierre de Día")
@@ -23,6 +24,7 @@ class CierreDiaDialog(QDialog):
         
         # Inicializar servicios
         self.cierre_service = CierreDiaService()
+        self.exchange_service = exchange_service or ExchangeRateService()  # Inicializar el servicio
         
         # Variables para totales
         self.total_usd_valor = 0.0
@@ -101,7 +103,12 @@ class CierreDiaDialog(QDialog):
         
         conteo_layout.addRow("", self.diferencia_cup)
         conteo_layout.addRow("", self.diferencia_usd)
-        
+        # Añadir esta sección:
+# Etiqueta para mostrar posible cambio de divisas
+        self.cambio_divisas_label = QLabel("")
+        self.cambio_divisas_label.setVisible(False)
+        conteo_layout.addRow("", self.cambio_divisas_label)
+
         conteo_group.setLayout(conteo_layout)
         main_layout.addWidget(conteo_group)
         
@@ -185,15 +192,40 @@ class CierreDiaDialog(QDialog):
             )
 
     def calcular_diferencias(self):
-        """Calcula las diferencias entre lo contado y lo registrado"""
+        """Calcula las diferencias entre lo contado y lo registrado y detecta posibles cambios de divisa"""
         try:
             # Obtener valores contados
             cup_contado = float(self.cup_contado_input.text() or 0)
             usd_contado = float(self.usd_contado_input.text() or 0)
             
-            # Calcular diferencias
+            # Calcular diferencias individuales
             diferencia_cup = cup_contado - self.total_cup_valor
             diferencia_usd = usd_contado - self.total_usd_valor
+            
+            # Obtener tasa de cambio actual
+            tasa = self.exchange_service.obtener_tasa_actual()
+            
+            # Verificar si es un posible cambio de divisas
+            es_cambio_divisas = False
+            mensaje_cambio = ""
+            
+            # Caso 1: Falta USD pero sobra el equivalente en CUP (alguien cambió USD por CUP)
+            if diferencia_usd < -0.01 and diferencia_cup > 0:
+                # Convertir la diferencia de USD a CUP para ver si coincide
+                equivalente_cup = abs(diferencia_usd) * tasa
+                if abs(equivalente_cup - diferencia_cup) / equivalente_cup < 0.05:  # 5% de tolerancia
+                    es_cambio_divisas = True
+                    mensaje_cambio = (f"✓ Posible cambio de {abs(diferencia_usd):.2f} USD a "
+                                    f"{diferencia_cup:.2f} CUP (tasa aprox: {diferencia_cup/abs(diferencia_usd):.2f})")
+            
+            # Caso 2: Falta CUP pero sobra el equivalente en USD (alguien cambió CUP por USD)
+            elif diferencia_cup < -0.01 and diferencia_usd > 0:
+                # Convertir la diferencia de CUP a USD para ver si coincide
+                equivalente_usd = abs(diferencia_cup) / tasa
+                if abs(equivalente_usd - diferencia_usd) / equivalente_usd < 0.05:  # 5% de tolerancia
+                    es_cambio_divisas = True
+                    mensaje_cambio = (f"✓ Posible cambio de {abs(diferencia_cup):.2f} CUP a "
+                                    f"{diferencia_usd:.2f} USD (tasa aprox: {abs(diferencia_cup)/diferencia_usd:.2f})")
             
             # Actualizar etiquetas con colores apropiados
             # Para diferencia CUP
@@ -205,7 +237,7 @@ class CierreDiaDialog(QDialog):
                 self.diferencia_cup.setStyleSheet("color: blue;")
             else:
                 self.diferencia_cup.setText(f"Diferencia CUP: -${abs(diferencia_cup):.2f} (Falta)")
-                self.diferencia_cup.setStyleSheet("color: red; font-weight: bold;")
+                self.diferencia_cup.setStyleSheet("color: red;")
             
             # Para diferencia USD
             if abs(diferencia_usd) < 0.01:  # Casi exacto (por redondeo)
@@ -216,14 +248,23 @@ class CierreDiaDialog(QDialog):
                 self.diferencia_usd.setStyleSheet("color: blue;")
             else:
                 self.diferencia_usd.setText(f"Diferencia USD: -${abs(diferencia_usd):.2f} (Falta)")
-                self.diferencia_usd.setStyleSheet("color: red; font-weight: bold;")
+                self.diferencia_usd.setStyleSheet("color: red;")
             
+            # Mostrar información sobre posible cambio de divisas
+            if es_cambio_divisas:
+                self.cambio_divisas_label.setText(mensaje_cambio)
+                self.cambio_divisas_label.setStyleSheet("color: green; font-weight: bold; margin-top: 5px;")
+                self.cambio_divisas_label.setVisible(True)
+            else:
+                self.cambio_divisas_label.setVisible(False)
+                
         except ValueError:
             # Si hay un error en la conversión, mostrar mensaje
             self.diferencia_cup.setText("Diferencia CUP: Error en valor")
             self.diferencia_cup.setStyleSheet("color: red;")
             self.diferencia_usd.setText("Diferencia USD: Error en valor")
             self.diferencia_usd.setStyleSheet("color: red;")
+            self.cambio_divisas_label.setVisible(False)
 
     def realizar_cierre(self):
         """Realiza el cierre del día con la verificación de efectivo"""
@@ -236,11 +277,32 @@ class CierreDiaDialog(QDialog):
             diferencia_cup = cup_contado - self.total_cup_valor
             diferencia_usd = usd_contado - self.total_usd_valor
             
+            # Obtener tasa de cambio actual
+            tasa = self.exchange_service.obtener_tasa_actual()
+            
+            # Verificar si es un posible cambio de divisas
+            es_cambio_divisas = False
+            mensaje_cambio = ""
+            
+            # Caso 1: Falta USD pero sobra el equivalente en CUP
+            if diferencia_usd < -0.01 and diferencia_cup > 0:
+                equivalente_cup = abs(diferencia_usd) * tasa
+                if abs(equivalente_cup - diferencia_cup) / equivalente_cup < 0.05:  # 5% de tolerancia
+                    es_cambio_divisas = True
+                    mensaje_cambio = f"\n\n✓ Posible cambio de {abs(diferencia_usd):.2f} USD a {diferencia_cup:.2f} CUP"
+            
+            # Caso 2: Falta CUP pero sobra el equivalente en USD
+            elif diferencia_cup < -0.01 and diferencia_usd > 0:
+                equivalente_usd = abs(diferencia_cup) / tasa
+                if abs(equivalente_usd - diferencia_usd) / equivalente_usd < 0.05:  # 5% de tolerancia
+                    es_cambio_divisas = True
+                    mensaje_cambio = f"\n\n✓ Posible cambio de {abs(diferencia_cup):.2f} CUP a {diferencia_usd:.2f} USD"
+            
             # Mensaje según situación
             mensaje_diferencia = ""
-            if diferencia_cup < 0 or diferencia_usd < 0:
+            if (diferencia_cup < 0 or diferencia_usd < 0) and not es_cambio_divisas:
                 mensaje_diferencia = "\n\n⚠️ ADVERTENCIA: Hay una FALTA de dinero en caja. ⚠️"
-            elif diferencia_cup > 0 or diferencia_usd > 0:
+            elif (diferencia_cup > 0 or diferencia_usd > 0) and not es_cambio_divisas:
                 mensaje_diferencia = "\n\nNota: Hay un sobrante de dinero en caja."
             
             # Confirmar antes de proceder
@@ -253,7 +315,8 @@ class CierreDiaDialog(QDialog):
                 f"📊 Total CUP registrado: ${self.total_cup_valor:.2f}\n"
                 f"📊 Total USD registrado: ${self.total_usd_valor:.2f}\n\n"
                 f"🔄 Diferencia CUP: ${diferencia_cup:.2f}\n"
-                f"🔄 Diferencia USD: ${diferencia_usd:.2f}{mensaje_diferencia}",
+                f"🔄 Diferencia USD: ${diferencia_usd:.2f}"
+                f"{mensaje_cambio}{mensaje_diferencia}",
                 QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
                 QMessageBox.StandardButton.No
             )
@@ -263,9 +326,8 @@ class CierreDiaDialog(QDialog):
                 resultado = self.cierre_service.realizar_cierre_dia(usd_contado, cup_contado)
                 
                 if resultado['success']:
-                    QMessageBox.information(
-                        self,
-                        "Cierre Exitoso",
+                    # Mensaje personalizado según si hay cambio de divisas
+                    mensaje_exito = (
                         f"✅ El cierre del día se ha realizado correctamente.\n\n"
                         f"🧾 ID de cierre: {resultado['cierre_id']}\n"
                         f"📝 Facturas cerradas: {resultado['num_facturas']}\n\n"
@@ -273,6 +335,15 @@ class CierreDiaDialog(QDialog):
                         f"💰 Total CUP: ${resultado['total_cup']:.2f}\n\n"
                         f"🔍 Diferencia USD: ${resultado['diferencia_usd']:.2f}\n"
                         f"🔍 Diferencia CUP: ${resultado['diferencia_cup']:.2f}"
+                    )
+                    
+                    if es_cambio_divisas:
+                        mensaje_exito += f"\n\n{mensaje_cambio}"
+                    
+                    QMessageBox.information(
+                        self,
+                        "Cierre Exitoso",
+                        mensaje_exito
                     )
                     self.accept()  # Cerrar el diálogo
                 else:

@@ -214,7 +214,8 @@ class MainWindow(QMainWindow):
         """Muestra el diálogo para realizar el cierre del día"""
         from app.ui.dialogs.cierre_dia_dialog import CierreDiaDialog
         
-        dialogo = CierreDiaDialog(self)
+        # Pasar el servicio de cambio al diálogo
+        dialogo = CierreDiaDialog(self, self.exchange_service)
         
         if dialogo.exec():
             # Si el diálogo se cerró con éxito (cierre realizado)

@@ -34,102 +34,146 @@ class FacturacionTab(QWidget):
         # Cargar datos iniciales
         self.cargar_tasa_actual()
         self.cargar_facturas_recientes()
-    
     def init_ui(self):
         """Inicializa la interfaz de usuario"""
         # Layout principal
         main_layout = QVBoxLayout(self)
         
-        # Grupo: Tasa de cambio
+        # Título/Fecha
+        fecha_actual = datetime.date.today().strftime("%d/%m/%Y")
+        titulo_label = QLabel(f"FACTURACIÓN - {fecha_actual}")
+        titulo_label.setStyleSheet("font-size: 16px; font-weight: bold; margin-bottom: 10px;")
+        titulo_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        main_layout.addWidget(titulo_label)
+        
+        # Sección 1: Tasa de cambio
         tasa_group = QGroupBox("Tasa de Cambio")
-        tasa_layout = QFormLayout()
+        tasa_group.setStyleSheet("QGroupBox { font-weight: bold; }")
+        tasa_layout = QHBoxLayout()
         
         self.tasa_label = QLabel("USD 1 = CUP --")
-        tasa_layout.addRow("Tasa actual:", self.tasa_label)
+        self.tasa_label.setStyleSheet("font-size: 14px; font-weight: bold;")
         
         tasa_actualizar_btn = QPushButton("Actualizar Tasa")
         tasa_actualizar_btn.clicked.connect(self.mostrar_dialogo_tasa)
-        tasa_layout.addRow(tasa_actualizar_btn)
+        
+        tasa_layout.addWidget(QLabel("Tasa actual:"))
+        tasa_layout.addWidget(self.tasa_label)
+        tasa_layout.addStretch()
+        tasa_layout.addWidget(tasa_actualizar_btn)
         
         tasa_group.setLayout(tasa_layout)
-        
-        # Contenedor superior: tasa de cambio + datos de factura
-        top_container = QHBoxLayout()
-        
-        # Grupo: Datos de factura
+        main_layout.addWidget(tasa_group)
+                # Sección 2: Datos de la factura
         factura_group = QGroupBox("Datos de Factura")
+        factura_group.setStyleSheet("QGroupBox { font-weight: bold; }")
         factura_layout = QFormLayout()
         
+        # ID de Orden con botón de escaneo
+        orden_layout = QHBoxLayout()
         self.orden_id_input = QLineEdit()
         self.orden_id_input.setPlaceholderText("Escanee o ingrese ID de orden")
-        factura_layout.addRow("ID de Orden:", self.orden_id_input)
+        self.orden_id_input.setMinimumWidth(200)
         
         escanear_btn = QPushButton("Escanear")
         escanear_btn.clicked.connect(self.iniciar_escaneo)
-        factura_layout.addRow(escanear_btn)
         
+        orden_layout.addWidget(self.orden_id_input)
+        orden_layout.addWidget(escanear_btn)
+        
+        factura_layout.addRow("ID de Orden:", orden_layout)
+        
+        # Monto y moneda
+        monto_layout = QHBoxLayout()
         self.monto_input = QLineEdit()
         self.monto_input.setPlaceholderText("Ingrese el monto")
+        self.monto_input.setMinimumWidth(120)
         self.monto_input.textChanged.connect(self.actualizar_monto_equivalente)
-        factura_layout.addRow("Monto:", self.monto_input)
         
         self.moneda_combo = QComboBox()
         self.moneda_combo.addItems(["USD", "CUP"])
         self.moneda_combo.currentTextChanged.connect(self.actualizar_monto_equivalente)
-        factura_layout.addRow("Moneda:", self.moneda_combo)
         
+        monto_layout.addWidget(self.monto_input)
+        monto_layout.addWidget(QLabel("en"))
+        monto_layout.addWidget(self.moneda_combo)
+        
+        factura_layout.addRow("Monto:", monto_layout)
+        
+        # Equivalente
         self.equivalente_label = QLabel("Equivalente: --")
-        factura_layout.addRow(self.equivalente_label)
+        self.equivalente_label.setStyleSheet("font-style: italic;")
+        factura_layout.addRow("", self.equivalente_label)
         
-        # Grupo: Forma de Pago
-        forma_pago_group = QGroupBox("Forma de Pago")
-        forma_pago_layout = QFormLayout()
+        factura_group.setLayout(factura_layout)
+        main_layout.addWidget(factura_group)
+
+            # Sección 3: Forma de Pago
+        pago_group = QGroupBox("Forma de Pago")
+        pago_group.setStyleSheet("QGroupBox { font-weight: bold; }")
+        pago_layout = QFormLayout()
         
         self.pago_usd_input = QLineEdit()
         self.pago_usd_input.setPlaceholderText("0.00")
         self.pago_usd_input.textChanged.connect(self.verificar_balance)
-        forma_pago_layout.addRow("Recibido en USD:", self.pago_usd_input)
+        pago_layout.addRow("Recibido en USD:", self.pago_usd_input)
         
         self.pago_cup_input = QLineEdit()
         self.pago_cup_input.setPlaceholderText("0.00")
         self.pago_cup_input.textChanged.connect(self.verificar_balance)
-        forma_pago_layout.addRow("Recibido en CUP:", self.pago_cup_input)
+        pago_layout.addRow("Recibido en CUP:", self.pago_cup_input)
         
         self.balance_label = QLabel("Balance: --")
-        forma_pago_layout.addRow("", self.balance_label)
+        self.balance_label.setStyleSheet("font-weight: bold;")
+        pago_layout.addRow("", self.balance_label)
         
-        forma_pago_group.setLayout(forma_pago_layout)
+        pago_group.setLayout(pago_layout)
+        main_layout.addWidget(pago_group)
         
         # Botón de registrar
-        registrar_btn = QPushButton("Registrar Factura")
+        registrar_btn = QPushButton("REGISTRAR FACTURA")
+        registrar_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #4CAF50;
+                color: white;
+                font-weight: bold;
+                padding: 10px;
+                font-size: 16px;
+                border-radius: 5px;
+            }
+            QPushButton:hover {
+                background-color: #45a049;
+            }
+        """)
         registrar_btn.clicked.connect(self.registrar_factura)
-        
-        # Añadir grupos al contenedor superior
-        top_container.addWidget(tasa_group, 1)
-        top_container.addWidget(factura_group, 2)
-        
-        # Tabla de facturas recientes
+        main_layout.addWidget(registrar_btn)
+
+                # Tabla de facturas recientes
         facturas_group = QGroupBox("Facturas Recientes")
+        facturas_group.setStyleSheet("QGroupBox { font-weight: bold; }")
         facturas_layout = QVBoxLayout()
         
         self.facturas_table = QTableWidget()
         self.facturas_table.setColumnCount(7)
-        self.facturas_table.setHorizontalHeaderLabels(["ID Orden", "Monto", "Moneda", "Pago USD", "Pago CUP", "Equivalente (USD)", "Fecha"])
+        self.facturas_table.setHorizontalHeaderLabels([
+            "ID Orden", "Monto", "Moneda", "Pago USD", "Pago CUP", 
+            "Equivalente (USD)", "Fecha"
+        ])
         self.facturas_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
+        self.facturas_table.setAlternatingRowColors(True)
         
         facturas_layout.addWidget(self.facturas_table)
         facturas_group.setLayout(facturas_layout)
-        
-        # Añadir todo al layout principal
-        main_layout.addLayout(top_container)
-        main_layout.addWidget(forma_pago_group)
-        main_layout.addWidget(registrar_btn)
         main_layout.addWidget(facturas_group)
-    
+        
+        # Dar foco al primer campo
+        self.orden_id_input.setFocus()
+
     def cargar_tasa_actual(self):
         """Carga y muestra la tasa de cambio actual"""
         tasa = self.exchange_service.obtener_tasa_actual()
         self.tasa_label.setText(f"USD 1 = CUP {tasa:.2f}")
+    
     def verificar_balance(self):
         """Verifica si el balance de pago es correcto"""
         try:
@@ -172,6 +216,7 @@ class FacturacionTab(QWidget):
         except ValueError:
             self.balance_label.setText("Balance: Error en valores")
             self.balance_label.setStyleSheet("color: red;")
+
     def mostrar_dialogo_tasa(self):
         """Muestra un diálogo para actualizar la tasa de cambio"""
         tasa_actual = self.exchange_service.obtener_tasa_actual()
@@ -188,7 +233,7 @@ class FacturacionTab(QWidget):
             self.cargar_tasa_actual()
             self.actualizar_monto_equivalente()
             QMessageBox.information(self, "Tasa Actualizada", 
-                                  f"La tasa de cambio se ha actualizado a: USD 1 = CUP {nueva_tasa:.2f}")
+                                f"La tasa de cambio se ha actualizado a: USD 1 = CUP {nueva_tasa:.2f}")
     
     def iniciar_escaneo(self):
         """Inicia el proceso de escaneo de código de barras"""
@@ -196,8 +241,8 @@ class FacturacionTab(QWidget):
         if codigo:
             self.orden_id_input.setText(codigo)
             QMessageBox.information(self, "Escaneo Exitoso", 
-                                  f"Código escaneado: {codigo}")
-    
+                                f"Código escaneado: {codigo}")
+
     def actualizar_monto_equivalente(self):
         """Actualiza el monto equivalente basado en la moneda seleccionada y la tasa de cambio"""
         try:
@@ -268,6 +313,7 @@ class FacturacionTab(QWidget):
                 self.pago_cup_input.clear()
                 self.equivalente_label.setText("Equivalente: --")
                 self.balance_label.setText("Balance: --")
+                self.balance_label.setStyleSheet("")
                 
                 # Actualizar tabla de facturas recientes
                 self.cargar_facturas_recientes()
@@ -287,6 +333,7 @@ class FacturacionTab(QWidget):
                 
         except ValueError:
             QMessageBox.warning(self, "Error", "Los valores ingresados no son válidos")
+    
     def cargar_facturas_recientes(self):
         """Carga las facturas recientes en la tabla"""
         # Usar el servicio de facturación para obtener los datos
@@ -317,14 +364,7 @@ class FacturacionTab(QWidget):
             self.facturas_table.setItem(i, 0, orden_id_item)
             self.facturas_table.setItem(i, 1, monto_item)
             self.facturas_table.setItem(i, 2, moneda_item)
-            
-            # Si la tabla ya tiene las columnas para pagos
-            if self.facturas_table.columnCount() > 5:
-                self.facturas_table.setItem(i, 3, pago_usd_item)
-                self.facturas_table.setItem(i, 4, pago_cup_item)
-                self.facturas_table.setItem(i, 5, equivalente_item)
-                self.facturas_table.setItem(i, 6, fecha_item)
-            else:
-                # Si no, mantener el formato anterior
-                self.facturas_table.setItem(i, 3, equivalente_item)
-                self.facturas_table.setItem(i, 4, fecha_item)
+            self.facturas_table.setItem(i, 3, pago_usd_item)
+            self.facturas_table.setItem(i, 4, pago_cup_item)
+            self.facturas_table.setItem(i, 5, equivalente_item)
+            self.facturas_table.setItem(i, 6, fecha_item)
