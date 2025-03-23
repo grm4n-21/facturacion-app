@@ -168,17 +168,36 @@ class FacturacionTab(QWidget):
         transferencia_layout = QFormLayout()
 
         # Campo para el monto de transferencia
+        from PyQt6.QtCore import QRegularExpression
+        from PyQt6.QtGui import QRegularExpressionValidator, QDoubleValidator
+        
         self.pago_transferencia_input = QLineEdit()
         self.pago_transferencia_input.setPlaceholderText("0.00")
+        
+        # Usar expresión regular para permitir números muy grandes con hasta 2 decimales
+        regex = QRegularExpression("^[0-9]*\\.?[0-9]{0,2}$")
+        validator = QRegularExpressionValidator(regex)
+        self.pago_transferencia_input.setValidator(validator)
+        
+        # Desconectar señales existentes si las hay
+        try:
+            self.pago_transferencia_input.textChanged.disconnect()
+        except TypeError:
+            pass  # Ignorar si no hay conexiones
+        
+        # Reconectar señales correctamente
         self.pago_transferencia_input.textChanged.connect(self.verificar_balance)
+        self.pago_transferencia_input.editingFinished.connect(self.formatear_numero_transferencia)
+        
         # Asegurarse de que esté habilitado
         self.pago_transferencia_input.setEnabled(True)
 
         # Campo para el ID de transferencia
         self.transferencia_id_input = QLineEdit()
         self.transferencia_id_input.setPlaceholderText("ID o referencia de la transferencia")
-        # Este campo se habilitará automáticamente cuando haya un monto
-        self.pago_transferencia_input.textChanged.connect(self.actualizar_campo_id_transferencia)
+        
+        # Usar editingFinished en lugar de textChanged para el ID
+        self.pago_transferencia_input.editingFinished.connect(self.actualizar_campo_id_transferencia)
 
         # Agregar campos al layout
         transferencia_layout.addRow("Monto CUP:", self.pago_transferencia_input)
@@ -249,13 +268,33 @@ class FacturacionTab(QWidget):
         
         # Dar foco al primer campo
         self.orden_id_input.setFocus()
-
     def cargar_tasa_actual(self):
         """Carga y muestra las tasas de cambio actuales"""
         tasas = self.exchange_service.obtener_tasas_actuales()
         self.tasa_usd_label.setText(f"USD 1 = CUP {tasas['usd']:.2f}")
         self.tasa_eur_label.setText(f"EUR 1 = CUP {tasas['eur']:.2f}")
 
+    def formatear_numero_transferencia(self):
+        """Formatea el número de la transferencia para mejor visualización"""
+        texto = self.pago_transferencia_input.text().strip()
+        if not texto:
+            return
+            
+        try:
+            # Convertir a número
+            valor = float(texto)
+            
+            # Formatear con 2 decimales
+            texto_formateado = f"{valor:.2f}"
+            
+            # Actualizar el campo solo si ha cambiado
+            if texto != texto_formateado:
+                self.pago_transferencia_input.blockSignals(True)
+                self.pago_transferencia_input.setText(texto_formateado)
+                self.pago_transferencia_input.blockSignals(False)
+        except ValueError:
+            pass  # Ignorar errores de conversión
+    
     def habilitar_transferencia(self, state):
         """Habilita o deshabilita los campos de transferencia según el estado del checkbox"""
         is_checked = state == Qt.CheckState.Checked
@@ -283,13 +322,32 @@ class FacturacionTab(QWidget):
             tasa_usd = tasas['usd']
             tasa_eur = tasas['eur']
             
-            # Obtener pagos
-            pago_usd = float(self.pago_usd_input.text() or 0)
-            pago_eur = float(self.pago_eur_input.text() or 0)
-            pago_cup = float(self.pago_cup_input.text() or 0)
+            # Obtener pagos - Usar try/except para cada conversión por seguridad
+            try:
+                pago_usd = float(self.pago_usd_input.text() or 0)
+            except ValueError:
+                pago_usd = 0
+                self.pago_usd_input.setText("0")
+                
+            try:
+                pago_eur = float(self.pago_eur_input.text() or 0)
+            except ValueError:
+                pago_eur = 0
+                self.pago_eur_input.setText("0")
+                
+            try:
+                pago_cup = float(self.pago_cup_input.text() or 0)
+            except ValueError:
+                pago_cup = 0
+                self.pago_cup_input.setText("0")
             
-            # Transferencia - Ya no usa checkbox
-            pago_transferencia = float(self.pago_transferencia_input.text() or 0)
+            # Transferencia - Con manejo especial para números grandes
+            try:
+                pago_transferencia_texto = self.pago_transferencia_input.text().strip()
+                pago_transferencia = float(pago_transferencia_texto or 0)
+            except ValueError:
+                pago_transferencia = 0
+                self.pago_transferencia_input.setText("0")
             
             # Calcular total en la moneda de la factura
             if moneda == "USD":
@@ -326,14 +384,29 @@ class FacturacionTab(QWidget):
                 self.balance_label.setText("Balance: Correcto ✓")
                 self.balance_label.setStyleSheet("color: green; font-weight: bold;")
             elif balance > 0:
-                self.balance_label.setText(f"Balance: Cambio de {balance:.2f} {moneda_balance}")
+                # Formatear el balance con separadores si es un número grande
+                if abs(balance) >= 1000:
+                    balance_formateado = f"{balance:,.2f}".replace(",", " ")
+                    self.balance_label.setText(f"Balance: Cambio de {balance_formateado} {moneda_balance}")
+                else:
+                    self.balance_label.setText(f"Balance: Cambio de {balance:.2f} {moneda_balance}")
                 self.balance_label.setStyleSheet("color: blue; font-weight: bold;")
             else:
-                self.balance_label.setText(f"Balance: Faltan {-balance:.2f} {moneda_balance}")
+                # Formatear el balance negativo con separadores si es un número grande
+                if abs(balance) >= 1000:
+                    balance_formateado = f"{abs(balance):,.2f}".replace(",", " ")
+                    self.balance_label.setText(f"Balance: Faltan {balance_formateado} {moneda_balance}")
+                else:
+                    self.balance_label.setText(f"Balance: Faltan {abs(balance):.2f} {moneda_balance}")
                 self.balance_label.setStyleSheet("color: red; font-weight: bold;")
                     
-        except ValueError:
+        except ValueError as e:
+            print(f"Error al calcular balance: {e}")
             self.balance_label.setText("Balance: Error en valores")
+            self.balance_label.setStyleSheet("color: red;")
+        except Exception as e:
+            print(f"Error inesperado: {e}")
+            self.balance_label.setText("Balance: Error")
             self.balance_label.setStyleSheet("color: red;")
 
     def mostrar_dialogo_tasa(self, moneda="usd"):
@@ -549,27 +622,28 @@ class FacturacionTab(QWidget):
             self.facturas_table.setItem(i, 8, fecha_item)
 
     def actualizar_campo_id_transferencia(self):
-            """Habilita o deshabilita el campo de ID de transferencia según el monto"""
-            try:
-                monto_texto = self.pago_transferencia_input.text().strip()
-                if not monto_texto:
-                    self.transferencia_id_input.setEnabled(False)
-                    self.transferencia_id_input.clear()
-                    return
-                    
-                monto = float(monto_texto)
-                self.transferencia_id_input.setEnabled(monto > 0)
-                
-                if monto <= 0:
-                    self.transferencia_id_input.clear()
-                    self.transferencia_id_input.setEnabled(False)
-                else:
-                    self.transferencia_id_input.setEnabled(True)
-                    self.transferencia_id_input.setFocus()
-                    
-                print(f"Monto transferencia: {monto}, campo ID habilitado: {monto > 0}")
-                
-            except ValueError as e:
-                print(f"Error al convertir monto de transferencia: {e}")
+        """Habilita o deshabilita el campo de ID de transferencia según el monto"""
+        try:
+            monto_texto = self.pago_transferencia_input.text().strip()
+            if not monto_texto:
                 self.transferencia_id_input.setEnabled(False)
                 self.transferencia_id_input.clear()
+                return
+                
+            monto = float(monto_texto)
+            habilitar = monto > 0
+            
+            # Actualizar estado del campo ID
+            if self.transferencia_id_input.isEnabled() != habilitar:
+                self.transferencia_id_input.setEnabled(habilitar)
+                
+                if not habilitar:
+                    self.transferencia_id_input.clear()
+                elif habilitar:
+                    # Solo dar foco si se acaba de habilitar
+                    self.transferencia_id_input.setFocus()
+                    
+        except ValueError as e:
+            print(f"Error al convertir monto de transferencia: {e}")
+            self.transferencia_id_input.setEnabled(False)
+            self.transferencia_id_input.clear()
