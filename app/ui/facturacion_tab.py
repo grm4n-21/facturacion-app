@@ -138,8 +138,8 @@ class FacturacionTab(QWidget):
         factura_group.setLayout(factura_layout)
         container_layout.addWidget(factura_group)
         
-        # Sección 3: Forma de Pago
-        pago_group = QGroupBox("Forma de Pago")
+        # Sección 3: Forma de Pago en efectivo
+        pago_group = QGroupBox("Forma de Pago en Efectivo")
         pago_group.setStyleSheet("QGroupBox { font-weight: bold; }")
         pago_layout = QFormLayout()
         
@@ -159,37 +159,47 @@ class FacturacionTab(QWidget):
         self.pago_cup_input.textChanged.connect(self.verificar_balance)
         pago_layout.addRow("Efectivo CUP:", self.pago_cup_input)
         
-        # Transferencia
-        transferencia_layout = QVBoxLayout()
+        pago_group.setLayout(pago_layout)
+        container_layout.addWidget(pago_group)  # Primero agregamos el grupo de pagos en efectivo
         
-        transfer_monto_layout = QHBoxLayout()
+        # Sección 4: Transferencia
+        transferencia_group = QGroupBox("Forma de Pago por Transferencia")
+        transferencia_group.setStyleSheet("QGroupBox { font-weight: bold; }")
+        transferencia_layout = QFormLayout()
+
+        # Campo para el monto de transferencia
         self.pago_transferencia_input = QLineEdit()
         self.pago_transferencia_input.setPlaceholderText("0.00")
         self.pago_transferencia_input.textChanged.connect(self.verificar_balance)
-        self.pago_transferencia_input.setEnabled(False)  # Deshabilitado inicialmente
-        
-        self.pago_transferencia_check = QCheckBox("Transferencia CUP")
-        self.pago_transferencia_check.stateChanged.connect(self.habilitar_transferencia)
-        
-        transfer_monto_layout.addWidget(self.pago_transferencia_check)
-        transfer_monto_layout.addWidget(self.pago_transferencia_input)
-        
+        # Asegurarse de que esté habilitado
+        self.pago_transferencia_input.setEnabled(True)
+
+        # Campo para el ID de transferencia
         self.transferencia_id_input = QLineEdit()
         self.transferencia_id_input.setPlaceholderText("ID o referencia de la transferencia")
-        self.transferencia_id_input.setEnabled(False)
+        # Este campo se habilitará automáticamente cuando haya un monto
+        self.pago_transferencia_input.textChanged.connect(self.actualizar_campo_id_transferencia)
+
+        # Agregar campos al layout
+        transferencia_layout.addRow("Monto CUP:", self.pago_transferencia_input)
+        transferencia_layout.addRow("ID Referencia:", self.transferencia_id_input)
+
+        transferencia_group.setLayout(transferencia_layout)
+        container_layout.addWidget(transferencia_group)  # Luego agregamos el grupo de transferencia
         
-        transferencia_layout.addLayout(transfer_monto_layout)
-        transferencia_layout.addWidget(self.transferencia_id_input)
-        
-        pago_layout.addRow("Transferencia:", transferencia_layout)
+        # Sección 5: Balance de Pago
+        balance_group = QGroupBox("Balance de Pago")
+        balance_group.setStyleSheet("QGroupBox { font-weight: bold; }")
+        balance_layout = QVBoxLayout()
         
         # Balance
         self.balance_label = QLabel("Balance: --")
-        self.balance_label.setStyleSheet("font-weight: bold;")
-        pago_layout.addRow("", self.balance_label)
+        self.balance_label.setStyleSheet("font-size: 14px; font-weight: bold;")
+        self.balance_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        balance_layout.addWidget(self.balance_label)
         
-        pago_group.setLayout(pago_layout)
-        container_layout.addWidget(pago_group)
+        balance_group.setLayout(balance_layout)
+        container_layout.addWidget(balance_group)  # Finalmente agregamos el grupo de balance
         
         # Botón de registrar
         registrar_btn = QPushButton("REGISTRAR FACTURA")
@@ -278,10 +288,8 @@ class FacturacionTab(QWidget):
             pago_eur = float(self.pago_eur_input.text() or 0)
             pago_cup = float(self.pago_cup_input.text() or 0)
             
-            # Transferencia
-            pago_transferencia = 0
-            if self.pago_transferencia_check.isChecked():
-                pago_transferencia = float(self.pago_transferencia_input.text() or 0)
+            # Transferencia - Ya no usa checkbox
+            pago_transferencia = float(self.pago_transferencia_input.text() or 0)
             
             # Calcular total en la moneda de la factura
             if moneda == "USD":
@@ -351,7 +359,7 @@ class FacturacionTab(QWidget):
         
         if ok:
             self.exchange_service.actualizar_tasa(nueva_tasa, moneda)
-            self.cargar_tasas_actuales()
+            self.cargar_tasa_actual()
             self.actualizar_monto_equivalente()
             QMessageBox.information(self, "Tasa Actualizada", 
                                 f"La tasa de cambio se ha actualizado: 1 {moneda.upper()} = {nueva_tasa:.2f} CUP")
@@ -418,17 +426,14 @@ class FacturacionTab(QWidget):
             pago_eur = float(self.pago_eur_input.text() or 0)
             pago_cup = float(self.pago_cup_input.text() or 0)
             
-            # Transferencia
-            pago_transferencia = 0
-            transferencia_id = None
-            if self.pago_transferencia_check.isChecked():
-                pago_transferencia = float(self.pago_transferencia_input.text() or 0)
-                transferencia_id = self.transferencia_id_input.text()
+            # Transferencia - Ya no usa checkbox
+            pago_transferencia = float(self.pago_transferencia_input.text() or 0)
+            transferencia_id = self.transferencia_id_input.text() if pago_transferencia > 0 else None
                 
-                # Validar ID de transferencia si hay monto
-                if pago_transferencia > 0 and not transferencia_id:
-                    QMessageBox.warning(self, "Error", "Debe ingresar el ID de la transferencia")
-                    return
+            # Validar ID de transferencia si hay monto
+            if pago_transferencia > 0 and not transferencia_id:
+                QMessageBox.warning(self, "Error", "Debe ingresar el ID de la transferencia")
+                return
             
             # Obtener tasas de cambio
             tasas = self.exchange_service.obtener_tasas_actuales()
@@ -473,7 +478,7 @@ class FacturacionTab(QWidget):
                 self.pago_cup_input.clear()
                 self.pago_transferencia_input.clear()
                 self.transferencia_id_input.clear()
-                self.pago_transferencia_check.setChecked(False)
+                # Ya no hay checkbox: self.pago_transferencia_check.setChecked(False)
                 self.equivalente_label.setText("Equivalente: --")
                 self.balance_label.setText("Balance: --")
                 self.balance_label.setStyleSheet("")
@@ -493,8 +498,8 @@ class FacturacionTab(QWidget):
             else:
                 QMessageBox.warning(self, "Error", "No se pudo registrar la factura")
                     
-        except ValueError:
-            QMessageBox.warning(self, "Error", "Los valores ingresados no son válidos")
+        except ValueError as e:
+            QMessageBox.warning(self, "Error", f"Los valores ingresados no son válidos: {e}")
     
     def cargar_facturas_recientes(self):
         """Carga las facturas recientes en la tabla"""
@@ -542,3 +547,29 @@ class FacturacionTab(QWidget):
             self.facturas_table.setItem(i, 6, pago_transferencia_item)
             self.facturas_table.setItem(i, 7, equivalente_item)
             self.facturas_table.setItem(i, 8, fecha_item)
+
+    def actualizar_campo_id_transferencia(self):
+            """Habilita o deshabilita el campo de ID de transferencia según el monto"""
+            try:
+                monto_texto = self.pago_transferencia_input.text().strip()
+                if not monto_texto:
+                    self.transferencia_id_input.setEnabled(False)
+                    self.transferencia_id_input.clear()
+                    return
+                    
+                monto = float(monto_texto)
+                self.transferencia_id_input.setEnabled(monto > 0)
+                
+                if monto <= 0:
+                    self.transferencia_id_input.clear()
+                    self.transferencia_id_input.setEnabled(False)
+                else:
+                    self.transferencia_id_input.setEnabled(True)
+                    self.transferencia_id_input.setFocus()
+                    
+                print(f"Monto transferencia: {monto}, campo ID habilitado: {monto > 0}")
+                
+            except ValueError as e:
+                print(f"Error al convertir monto de transferencia: {e}")
+                self.transferencia_id_input.setEnabled(False)
+                self.transferencia_id_input.clear()

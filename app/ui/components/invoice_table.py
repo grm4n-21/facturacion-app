@@ -18,9 +18,12 @@ class InvoiceTableWidget(QTableWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
         
-        # Configurar tabla
-        self.setColumnCount(5)
-        self.setHorizontalHeaderLabels(["ID Orden", "Monto", "Moneda", "Equivalente (USD)", "Fecha"])
+        # Configurar tabla con más columnas para incluir todos los pagos
+        self.setColumnCount(9)
+        self.setHorizontalHeaderLabels([
+            "ID Orden", "Monto", "Moneda", "Equivalente (USD)", 
+            "Pago USD", "Pago EUR", "Pago CUP", "Pago Transfer.", "Fecha"
+        ])
         
         # Configurar comportamiento
         self.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
@@ -30,7 +33,21 @@ class InvoiceTableWidget(QTableWidget):
         
         # Ajustar ancho de columnas
         header = self.horizontalHeader()
-        header.setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
+        
+        # Establecer anchos específicos para algunas columnas
+        self.setColumnWidth(0, 100)  # ID Orden
+        self.setColumnWidth(1, 80)   # Monto
+        self.setColumnWidth(2, 60)   # Moneda
+        self.setColumnWidth(3, 120)  # Equivalente
+        self.setColumnWidth(4, 80)   # Pago USD
+        self.setColumnWidth(5, 80)   # Pago EUR
+        self.setColumnWidth(6, 80)   # Pago CUP
+        self.setColumnWidth(7, 100)  # Pago Transferencia
+        self.setColumnWidth(8, 140)  # Fecha
+        
+        # Resto de columnas se estiran automáticamente
+        header.setSectionResizeMode(QHeaderView.ResizeMode.Interactive)
+        header.setStretchLastSection(True)
         
         # Conectar señales
         self.itemSelectionChanged.connect(self.on_selection_changed)
@@ -59,32 +76,76 @@ class InvoiceTableWidget(QTableWidget):
             monto_item = QTableWidgetItem(f"{factura.monto:.2f}")
             moneda_item = QTableWidgetItem(factura.moneda)
             equivalente_item = QTableWidgetItem(f"{factura.monto_equivalente:.2f}")
+            
+            # Nuevos items para los diferentes tipos de pago
+            pago_usd_item = QTableWidgetItem(f"{getattr(factura, 'pago_usd', 0):.2f}")
+            pago_eur_item = QTableWidgetItem(f"{getattr(factura, 'pago_eur', 0):.2f}")
+            pago_cup_item = QTableWidgetItem(f"{getattr(factura, 'pago_cup', 0):.2f}")
+            pago_transfer_item = QTableWidgetItem(f"{getattr(factura, 'pago_transferencia', 0):.2f}")
+            
             fecha_item = QTableWidgetItem(factura.fecha.strftime("%Y-%m-%d %H:%M"))
             
             # Configurar alineación para valores numéricos
-            monto_item.setTextAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
-            equivalente_item.setTextAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+            for item in [monto_item, equivalente_item, pago_usd_item, 
+                         pago_eur_item, pago_cup_item, pago_transfer_item]:
+                item.setTextAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
             
-            # Colorear según moneda
-            if factura.moneda == "USD":
-                color = QColor(240, 255, 240)  # Verde claro
+            # Esquema de colores para visualizar mejor los diferentes tipos de moneda
+            base_color = QColor(245, 245, 245)  # Color base gris claro
+            
+            # Colorear según tipo de moneda predominante
+            # Internacional (USD o EUR)
+            if factura.moneda == "USD" or factura.moneda == "EUR":
+                base_color = QColor(230, 255, 230)  # Verde muy claro para moneda internacional
+            # Nacional (CUP)
             else:
-                color = QColor(240, 240, 255)  # Azul claro
+                base_color = QColor(230, 230, 255)  # Azul muy claro para moneda nacional
+            
+            # Resaltado especial si hay pagos en diferentes monedas (pago mixto)
+            pagos = [
+                getattr(factura, 'pago_usd', 0), 
+                getattr(factura, 'pago_eur', 0),
+                getattr(factura, 'pago_cup', 0), 
+                getattr(factura, 'pago_transferencia', 0)
+            ]
+            pagos_positivos = sum(1 for p in pagos if p > 0)
+            
+            if pagos_positivos > 1:
+                base_color = QColor(255, 240, 210)  # Amarillo claro para pagos mixtos
             
             # Aplicar color de fondo a todas las celdas de la fila
-            for j in range(5):
-                item = [orden_id_item, monto_item, moneda_item, equivalente_item, fecha_item][j]
-                item.setBackground(color)
+            all_items = [orden_id_item, monto_item, moneda_item, equivalente_item, 
+                         pago_usd_item, pago_eur_item, pago_cup_item, pago_transfer_item, fecha_item]
+            
+            for item in all_items:
+                item.setBackground(base_color)
+            
+            # Resaltar valores de pago específicos que son > 0
+            if getattr(factura, 'pago_usd', 0) > 0:
+                pago_usd_item.setBackground(QColor(200, 255, 200))  # Verde más intenso
+            
+            if getattr(factura, 'pago_eur', 0) > 0:
+                pago_eur_item.setBackground(QColor(200, 230, 255))  # Azul claro
+            
+            if getattr(factura, 'pago_cup', 0) > 0:
+                pago_cup_item.setBackground(QColor(255, 220, 220))  # Rosa claro
+            
+            if getattr(factura, 'pago_transferencia', 0) > 0:
+                pago_transfer_item.setBackground(QColor(255, 240, 180))  # Amarillo
             
             # Almacenar el ID de la factura como datos de usuario en la primera columna
             orden_id_item.setData(Qt.ItemDataRole.UserRole, factura.id)
             
             # Añadir items a la tabla
-            self.setItem(i, 0, orden_id_item)
-            self.setItem(i, 1, monto_item)
-            self.setItem(i, 2, moneda_item)
-            self.setItem(i, 3, equivalente_item)
-            self.setItem(i, 4, fecha_item)
+            self.setItem(i, 0, orden_id_item)      # ID Orden
+            self.setItem(i, 1, monto_item)         # Monto
+            self.setItem(i, 2, moneda_item)        # Moneda
+            self.setItem(i, 3, equivalente_item)   # Equivalente USD
+            self.setItem(i, 4, pago_usd_item)      # Pago USD
+            self.setItem(i, 5, pago_eur_item)      # Pago EUR
+            self.setItem(i, 6, pago_cup_item)      # Pago CUP
+            self.setItem(i, 7, pago_transfer_item) # Pago Transferencia
+            self.setItem(i, 8, fecha_item)         # Fecha
     
     def on_selection_changed(self):
         """Maneja el cambio de selección en la tabla"""

@@ -44,6 +44,17 @@ class FacturacionService:
             if not orden_id or monto <= 0 or moneda not in ['USD', 'EUR', 'CUP']:
                 return False
             
+            # Convertir explícitamente todos los valores a float para garantizar el tipo correcto
+            try:
+                monto = float(monto)
+                pago_usd = float(pago_usd) if pago_usd is not None else 0.0
+                pago_eur = float(pago_eur) if pago_eur is not None else 0.0
+                pago_cup = float(pago_cup) if pago_cup is not None else 0.0
+                pago_transferencia = float(pago_transferencia) if pago_transferencia is not None else 0.0
+            except (ValueError, TypeError) as e:
+                print(f"Error al convertir valores a float: {e}")
+                return False
+            
             # Obtener tasas de cambio
             tasas = self.exchange_service.obtener_tasas_actuales()
             tasa_usd = tasas['usd']
@@ -83,13 +94,52 @@ class FacturacionService:
                 print(f"Pago insuficiente: {total_en_moneda_principal} vs {monto}")
                 return False
             
+            # Imprimir valores para depuración
+            print("Valores a insertar:")
+            print(f"orden_id: {orden_id}")
+            print(f"monto: {monto}")
+            print(f"moneda: {moneda}")
+            print(f"monto_equivalente: {monto_equivalente}")
+            print(f"pago_usd: {pago_usd}")
+            print(f"pago_eur: {pago_eur}")
+            print(f"pago_cup: {pago_cup}")
+            print(f"pago_transferencia: {pago_transferencia}")
+            print(f"transferencia_id: {transferencia_id}")
+            print(f"tasa_usada: {tasa_usada}")
+            
+            # Preparar parámetros explícitamente
+            params = (
+                str(orden_id),
+                float(monto),
+                str(moneda),
+                float(monto_equivalente),
+                float(pago_usd),
+                float(pago_eur),
+                float(pago_cup),
+                float(pago_transferencia),
+                transferencia_id,
+                float(tasa_usada)
+            )
+            
             # Insertar en la base de datos
             self.db.connect()
-            self.db.execute(
-                "INSERT INTO facturas (orden_id, monto, moneda, monto_equivalente, pago_usd, pago_eur, pago_cup, pago_transferencia, transferencia_id, tasa_usada) "
-                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                (orden_id, monto, moneda, monto_equivalente, pago_usd, pago_eur, pago_cup, pago_transferencia, transferencia_id, tasa_usada)
+            cursor = self.db.execute(
+                "INSERT INTO facturas (orden_id, monto, moneda, monto_equivalente, pago_usd, pago_eur, pago_cup, pago_transferencia, transferencia_id, tasa_usada, fecha) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)",
+                params
             )
+            
+            # Verificar la inserción
+            if cursor:
+                factura_id = cursor.lastrowid
+                verificacion = self.db.fetch_one(
+                    "SELECT pago_eur, pago_transferencia FROM facturas WHERE id = ?",
+                    (factura_id,)
+                )
+                
+                if verificacion:
+                    print(f"Verificación - pago_eur: {verificacion[0]}, pago_transferencia: {verificacion[1]}")
+            
             self.db.commit()
             self.db.disconnect()
             
@@ -97,6 +147,9 @@ class FacturacionService:
             
         except Exception as e:
             print(f"Error al registrar factura: {e}")
+            # Imprimir traceback para más detalles
+            import traceback
+            traceback.print_exc()
             return False
     
     def obtener_facturas_recientes(self, limite: int = 10) -> List[Factura]:
@@ -115,7 +168,7 @@ class FacturacionService:
             # Verificar si la tabla tiene las columnas de pagos
             tabla_actualizada = False
             try:
-                self.db.execute("SELECT pago_usd, pago_cup FROM facturas LIMIT 1")
+                self.db.execute("SELECT pago_usd, pago_eur, pago_cup, pago_transferencia FROM facturas LIMIT 1")
                 tabla_actualizada = True
             except:
                 tabla_actualizada = False
@@ -123,7 +176,7 @@ class FacturacionService:
             # Realizar la consulta apropiada
             if tabla_actualizada:
                 resultado = self.db.fetch_all(
-                    "SELECT id, orden_id, monto, moneda, monto_equivalente, pago_usd, pago_cup, fecha "
+                    "SELECT id, orden_id, monto, moneda, monto_equivalente, pago_usd, pago_eur, pago_cup, pago_transferencia, fecha "
                     "FROM facturas ORDER BY fecha DESC LIMIT ?",
                     (limite,)
                 )
@@ -145,11 +198,13 @@ class FacturacionService:
                         monto=row[2],
                         moneda=row[3],
                         monto_equivalente=row[4],
-                        fecha=datetime.datetime.fromisoformat(row[7].replace("Z", "+00:00")) 
-                            if "Z" in row[7] else datetime.datetime.fromisoformat(row[7])
+                        pago_usd=row[5],
+                        pago_eur=row[6],
+                        pago_cup=row[7],
+                        pago_transferencia=row[8],
+                        fecha=datetime.datetime.fromisoformat(row[9].replace("Z", "+00:00")) 
+                            if "Z" in row[9] else datetime.datetime.fromisoformat(row[9])
                     )
-                    factura.pago_usd = row[5]
-                    factura.pago_cup = row[6]
                 else:
                     factura = Factura.from_db_row(row)
                 
