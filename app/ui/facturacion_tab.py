@@ -11,7 +11,7 @@ from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QFormLayout,
                              QMessageBox, QInputDialog, QHeaderView, QCheckBox,
                              QScrollArea, QSizePolicy)
 from PyQt6.QtCore import Qt, pyqtSlot, Qt
-import datetime
+from datetime import datetime, date, timedelta
 
 from app.ui.components.scanner import ScannerWidget
 from app.ui.components.invoice_table import InvoiceTableWidget
@@ -51,7 +51,8 @@ class FacturacionTab(QWidget):
         container_layout = QVBoxLayout(container_widget)
         
         # Título/Fecha
-        fecha_actual = datetime.date.today().strftime("%d/%m/%Y")
+        fecha_actual = date.today().strftime("%d/%m/%Y")
+
         titulo_label = QLabel(f"FACTURACIÓN - {fecha_actual}")
         titulo_label.setStyleSheet("font-size: 16px; font-weight: bold; margin-bottom: 10px;")
         titulo_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -556,7 +557,6 @@ class FacturacionTab(QWidget):
                 self.balance_label.setText("Balance: --")
                 self.balance_label.setStyleSheet("")
                 
-                # Actualizar tabla de facturas recientes
                 self.cargar_facturas_recientes()
                 
                 # Mensaje de éxito con información sobre cambio si corresponde

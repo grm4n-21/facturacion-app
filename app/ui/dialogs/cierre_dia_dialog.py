@@ -8,7 +8,7 @@ from PyQt6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QFormLayout,
                             QLabel, QLineEdit, QPushButton, QMessageBox,
                             QGroupBox, QTableWidget, QTableWidgetItem, QHeaderView)
 from PyQt6.QtCore import Qt
-import datetime
+from datetime import datetime, date, timedelta
 
 from app.services.cierre_dia import CierreDiaService
 from app.services.exchange_rate import ExchangeRateService  # Añadir esta importación

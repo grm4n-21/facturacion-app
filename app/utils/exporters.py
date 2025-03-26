@@ -6,7 +6,7 @@ Utilidades para exportar datos a diferentes formatos.
 
 import os
 import csv
-import datetime
+from datetime import datetime, date, timedelta
 import json
 from typing import List, Dict, Any
 

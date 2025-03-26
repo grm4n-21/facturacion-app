@@ -4,7 +4,7 @@
 Servicio para la gestión de tasas de cambio.
 """
 
-import datetime
+from datetime import datetime, date, timedelta
 from app.database.db_manager import DatabaseManager
 
 class ExchangeRateService:

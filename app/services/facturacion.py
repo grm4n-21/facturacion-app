@@ -5,8 +5,8 @@ Servicio para la gestión de facturas.
 Implementa la lógica de negocio relacionada con la facturación.
 """
 
-import datetime
-from typing import List, Optional
+from datetime import datetime, date, timedelta
+from typing import Dict, List, Optional
 
 from app.database.db_manager import DatabaseManager
 from app.database.models import Factura
@@ -233,7 +233,7 @@ class FacturacionService:
             
             self.db.connect()
             resultado = self.db.fetch_all(
-                "SELECT id, orden_id, monto, moneda, monto_equivalente, fecha "
+                "SELECT id, orden_id, monto, moneda, monto_equivalente, pago_usd, pago_eur, pago_cup, pago_transferencia, fecha "
                 "FROM facturas "
                 "WHERE fecha BETWEEN ? AND ? "
                 "ORDER BY fecha",
@@ -243,39 +243,106 @@ class FacturacionService:
             
             facturas = []
             for row in resultado:
-                facturas.append(Factura.from_db_row(row))
+                # Crear la factura base con los campos principales
+                factura = Factura(
+                    id=row[0],
+                    orden_id=row[1],
+                    monto=row[2],
+                    moneda=row[3],
+                    monto_equivalente=row[4],
+                    fecha=datetime.datetime.fromisoformat(row[9].replace("Z", "+00:00")) 
+                        if "Z" in row[9] else datetime.datetime.fromisoformat(row[9])
+                )
+                
+                # Agregar explícitamente los campos de pago
+                factura.pago_usd = row[5]
+                factura.pago_eur = row[6]
+                factura.pago_cup = row[7]
+                factura.pago_transferencia = row[8]
+                
+                facturas.append(factura)
                 
             return facturas
             
         except Exception as e:
             print(f"Error al obtener facturas por fecha: {e}")
+            if self.db.connection:
+                self.db.disconnect()
             return []
     
-    def obtener_factura_por_id(self, factura_id: int) -> Optional[Factura]:
+    def obtener_factura_por_id(self, factura_id):
         """
         Obtiene una factura por su ID
         
         Args:
-            factura_id: ID de la factura
+            factura_id: ID de la factura a buscar
             
         Returns:
             Objeto Factura o None si no se encuentra
         """
         try:
+            # Conectar a la base de datos
             self.db.connect()
-            resultado = self.db.fetch_one(
-                "SELECT id, orden_id, monto, moneda, monto_equivalente, fecha "
-                "FROM facturas WHERE id = ?",
-                (factura_id,)
-            )
+            
+            # Consultar la factura
+            query = """
+            SELECT id, orden_id, monto, moneda, monto_equivalente, fecha, pago_usd, pago_eur, pago_cup, 
+                pago_transferencia, transferencia_id, tasa_usada, cerrada, dia_id
+            FROM facturas 
+            WHERE id = ?
+            """
+            
+            row = self.db.fetch_one(query, (factura_id,))
             self.db.disconnect()
             
-            if resultado:
-                return Factura.from_db_row(resultado)
-            return None
+            if not row:
+                return None
             
+            # Importamos datetime correctamente
+            from datetime import datetime
+            
+            # Procesar la fecha correctamente
+            fecha_str = row[5]
+            try:
+                if "Z" in fecha_str:
+                    fecha = datetime.fromisoformat(fecha_str.replace("Z", "+00:00"))
+                else:
+                    # Determine el formato correcto
+                    if "T" in fecha_str:
+                        fecha = datetime.fromisoformat(fecha_str)
+                    else:
+                        fecha = datetime.strptime(fecha_str, "%Y-%m-%d %H:%M:%S")
+            except Exception as e:
+                print(f"Error al procesar fecha '{fecha_str}': {e}")
+                fecha = datetime.now()  # Usar fecha actual como fallback
+            
+            # Crear objeto Factura con todos los campos
+            factura = Factura(
+                id=row[0],
+                orden_id=row[1],
+                monto=row[2],
+                moneda=row[3],
+                monto_equivalente=row[4],
+                fecha=fecha,
+                pago_usd=row[6] if row[6] is not None else 0,
+                pago_eur=row[7] if row[7] is not None else 0,
+                pago_cup=row[8] if row[8] is not None else 0,
+                pago_transferencia=row[9] if row[9] is not None else 0,
+                transferencia_id=row[10],
+                tasa_usada=row[11],
+                cerrada=bool(row[12]) if row[12] is not None else False,
+                dia_id=row[13]
+            )
+            
+            return factura
         except Exception as e:
             print(f"Error al obtener factura por ID: {e}")
+            import traceback
+            traceback.print_exc()
+            try:
+                self.db.disconnect()
+            except:
+                pass
             return None
     
     def obtener_tasa_cambio(self) -> float:
@@ -286,3 +353,180 @@ class FacturacionService:
             Tasa de cambio actual USD a CUP
         """
         return self.exchange_service.obtener_tasa_actual()
+    
+    # Añadir estos métodos a la clase FacturacionService
+
+    def obtener_facturas_por_orden_id(self, orden_id):
+        """
+        Obtiene facturas por ID de orden
+        
+        Args:
+            orden_id: ID de orden a buscar
+            
+        Returns:
+            Lista de objetos Factura
+        """
+        try:
+            # Conectar a la base de datos
+            self.db.connect()
+            
+            # Consultar facturas
+            query = """
+            SELECT id, orden_id, monto, moneda, monto_equivalente, fecha, pago_usd, pago_eur, pago_cup, 
+                pago_transferencia, transferencia_id, tasa_usada, cerrada, dia_id
+            FROM facturas 
+            WHERE orden_id = ?
+            ORDER BY fecha DESC
+            """
+            
+            rows = self.db.fetch_all(query, (orden_id,))
+            self.db.disconnect()
+            
+            # Convertir a objetos Factura
+            facturas = []
+            for row in rows:
+                factura = Factura(
+                    id=row[0],
+                    orden_id=row[1],
+                    monto=row[2],
+                    moneda=row[3],
+                    monto_equivalente=row[4],
+                    fecha=datetime.fromisoformat(row[5].replace("Z", "+00:00")) 
+                        if "Z" in row[5] else datetime.strptime(row[5], "%Y-%m-%d %H:%M:%S"),
+                    pago_usd=row[6] if row[6] is not None else 0,
+                    pago_eur=row[7] if row[7] is not None else 0,
+                    pago_cup=row[8] if row[8] is not None else 0,
+                    pago_transferencia=row[9] if row[9] is not None else 0,
+                    transferencia_id=row[10],
+                    tasa_usada=row[11],
+                    cerrada=bool(row[12]) if row[12] is not None else False,
+                    dia_id=row[13]
+                )
+                facturas.append(factura)
+            
+            return facturas
+        except Exception as e:
+            print(f"Error al obtener facturas por orden ID: {e}")
+            try:
+                self.db.disconnect()
+            except:
+                pass
+            return []
+
+
+    def actualizar_pagos_factura(self, factura_id, pago_usd, pago_eur, pago_cup, pago_transferencia, transferencia_id=None):
+        """
+        Actualiza los medios de pago de una factura
+        
+        Args:
+            factura_id: ID de la factura a actualizar
+            pago_usd: Monto pagado en USD
+            pago_eur: Monto pagado en EUR
+            pago_cup: Monto pagado en CUP
+            pago_transferencia: Monto pagado por transferencia
+            transferencia_id: ID de la transferencia (opcional)
+            
+        Returns:
+            True si la actualización fue exitosa, False en caso contrario
+        """
+        try:
+            # Conectar a la base de datos
+            self.db.connect()
+            
+            # Actualizar factura
+            query = """
+            UPDATE facturas
+            SET pago_usd = ?, pago_eur = ?, pago_cup = ?, pago_transferencia = ?, transferencia_id = ?
+            WHERE id = ? AND (cerrada = 0 OR cerrada IS NULL)
+            """
+            
+            self.db.execute(query, (
+                pago_usd, pago_eur, pago_cup, pago_transferencia, 
+                transferencia_id, factura_id
+            ))
+            
+            self.db.commit()
+            self.db.disconnect()
+            
+            return True
+        except Exception as e:
+            print(f"Error al actualizar pagos de factura: {e}")
+            try:
+                self.db.disconnect()
+            except:
+                pass
+            return False
+    # En facturacion.py
+    def cerrar_facturas_por_fecha(self, fecha):
+        """
+        Marca como cerradas todas las facturas hasta la fecha especificada
+        """
+        try:
+            # Convertir fecha a objeto date si es string
+            if isinstance(fecha, str):
+                fecha = datetime.strptime(fecha, "%Y-%m-%d").date()
+            
+            # Calcular fecha límite (fin del día)
+            fecha_limite = datetime.combine(fecha, datetime.max.time())
+            
+            # Marcar facturas como cerradas
+            self.db.session.query(Factura).filter(
+                Factura.fecha <= fecha_limite,
+                (Factura.cerrada == False) | (Factura.cerrada == None)
+            ).update({"cerrada": True})
+            
+            self.db.session.commit()
+            return True
+        except Exception as e:
+            print(f"Error al cerrar facturas: {e}")
+            self.db.session.rollback()
+            return False
+
+
+    def obtener_facturas_sin_cerrar(self):
+        """
+        Obtiene todas las facturas que no han sido cerradas
+        Returns:
+            list: Lista de objetos Factura que no están cerradas
+        """
+        try:
+            # Consultar facturas no cerradas
+            query = """
+            SELECT id, orden_id, monto, moneda, fecha, cerrada, pago_usd, pago_eur, pago_cup, 
+                pago_transferencia, transferencia_id 
+            FROM facturas 
+            WHERE cerrada = 0 OR cerrada IS NULL
+            ORDER BY fecha DESC
+            """
+            
+            # Usar fetch_all en lugar de fetchall
+            self.db.connect()
+            facturas_rows = self.db.fetch_all(query)
+            self.db.disconnect()
+            
+            # Convertir las filas en diccionarios para facilitar su uso
+            facturas = []
+            for row in facturas_rows:
+                factura = {
+                    'id': row[0],
+                    'orden_id': row[1],
+                    'monto': row[2],
+                    'moneda': row[3],
+                    'fecha': row[4],
+                    'cerrada': bool(row[5]) if row[5] is not None else False,
+                    'pago_usd': row[6] if row[6] is not None else 0,
+                    'pago_eur': row[7] if row[7] is not None else 0,
+                    'pago_cup': row[8] if row[8] is not None else 0,
+                    'pago_transferencia': row[9] if row[9] is not None else 0,
+                    'transferencia_id': row[10]
+                }
+                facturas.append(factura)
+            
+            return facturas
+        except Exception as e:
+            print(f"Error al obtener facturas sin cerrar: {e}")
+            try:
+                self.db.disconnect()
+            except:
+                pass
+            return []

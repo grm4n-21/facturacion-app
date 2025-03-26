@@ -7,7 +7,7 @@ Maneja conexiones, consultas y operaciones sobre la base de datos.
 
 import sqlite3
 import os
-import datetime
+from datetime import datetime, date, timedelta
 from pathlib import Path
 
 class DatabaseManager:
@@ -168,4 +168,23 @@ class DatabaseManager:
         )
         ''')
         
+        self.commit()
+
+    # Tabla de salidas de caja
+        self.execute('''
+        CREATE TABLE IF NOT EXISTS salidas_caja (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            fecha TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            monto_usd REAL DEFAULT 0,
+            monto_eur REAL DEFAULT 0,
+            monto_cup REAL DEFAULT 0,
+            monto_transferencia REAL DEFAULT 0,
+            destinatario TEXT NOT NULL,
+            autorizado_por TEXT NOT NULL,
+            motivo TEXT,
+            dia_id INTEGER,
+            cerrada INTEGER DEFAULT 0
+        )
+        ''')
+
         self.commit()

@@ -8,7 +8,7 @@ Script para realizar respaldos de la base de datos de la aplicación.
 import os
 import sys
 import shutil
-import datetime
+from datetime import datetime, date, timedelta
 import argparse
 import sqlite3
 from pathlib import Path
