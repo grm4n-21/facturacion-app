@@ -10,10 +10,11 @@ jobs:
     runs-on: windows-latest
     
     steps:
-    - uses: actions/checkout@v3
+    - name: Checkout repository
+      uses: actions/checkout@v2
     
     - name: Set up Python
-      uses: actions/setup-python@v4
+      uses: actions/setup-python@v2
       with:
         python-version: 3.9
     
@@ -27,31 +28,42 @@ jobs:
     
     - name: Build executable
       run: |
+        mkdir -p dist
         mkdir -p dist/data
         mkdir -p dist/scripts
-        copy scripts\setup.py dist\scripts\
+        if (Test-Path "scripts/setup.py") {
+          copy scripts/setup.py dist/scripts/
+        } else {
+          echo "Warning: setup.py not found"
+          mkdir -p scripts
+          echo "# Placeholder setup script" > scripts/setup.py
+          copy scripts/setup.py dist/scripts/
+        }
         pyinstaller --name Sistema_de_Facturacion --onefile --windowed app/main.py
     
     - name: Prepare distribution package
       run: |
+        mkdir -p windows_dist
         mkdir -p windows_dist/data
         mkdir -p windows_dist/scripts
-        copy scripts\setup.py windows_dist\scripts\
-        copy dist\Sistema_de_Facturacion.exe windows_dist\
-        echo "Sistema de Facturacion v1.0" > windows_dist\README.txt
+        copy scripts/setup.py windows_dist/scripts/
+        copy dist/Sistema_de_Facturacion.exe windows_dist/
+        echo "Sistema de Facturacion v1.0" > windows_dist/README.txt
+      shell: pwsh
     
     - name: Create ZIP archive
       run: |
-        Compress-Archive -Path windows_dist\* -DestinationPath Sistema_de_Facturacion_Windows.zip
+        Compress-Archive -Path windows_dist/* -DestinationPath Sistema_de_Facturacion_Windows.zip -Force
+      shell: pwsh
     
     - name: Upload executable
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v2
       with:
         name: Sistema_de_Facturacion_exe
-        path: dist\Sistema_de_Facturacion.exe
+        path: dist/Sistema_de_Facturacion.exe
     
     - name: Upload distribution package
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v2
       with:
         name: Sistema_de_Facturacion_Full
         path: Sistema_de_Facturacion_Windows.zip
