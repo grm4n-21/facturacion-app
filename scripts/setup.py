@@ -12,12 +12,6 @@ import sqlite3
 import argparse
 from pathlib import Path
 
-# Asegurar que los módulos de la aplicación se puedan importar
-sys.path.insert(0, str(Path(__file__).parent.parent))
-
-from app.utils.config import Config
-from app.database.db_manager import DatabaseManager
-
 def setup_database(db_path=None, force=False):
     """
     Configura la base de datos de la aplicación
@@ -30,10 +24,28 @@ def setup_database(db_path=None, force=False):
         True si la configuración fue exitosa, False en caso contrario
     """
     try:
+        # Importar módulos necesarios
+        # Si estamos en un exe, estos módulos ya deberían estar disponibles
+        if not getattr(sys, 'frozen', False):
+            # Si se ejecuta como script, asegurar que los módulos se puedan importar
+            script_dir = Path(__file__).parent.parent
+            if str(script_dir) not in sys.path:
+                sys.path.insert(0, str(script_dir))
+        
+        from app.utils.config import Config
+        from app.database.db_manager import DatabaseManager
+        
         # Si no se proporciona una ruta, usar la predeterminada
         if db_path is None:
-            config = Config()
-            db_path = config.get('database', 'path')
+            # Determinar ruta según si es exe o script
+            if getattr(sys, 'frozen', False):
+                # Ejecutando como exe
+                base_dir = Path(sys.executable).parent
+                db_path = base_dir / "data" / "facturacion.db"
+            else:
+                # Ejecutando como script
+                config = Config()
+                db_path = config.get('database', 'path')
         
         # Convertir a objeto Path
         db_path = Path(db_path)
@@ -57,7 +69,7 @@ def setup_database(db_path=None, force=False):
         from datetime import date
         db_manager.execute(
             "INSERT OR REPLACE INTO tasa_cambio (fecha, usd_valor, eur_valor) VALUES (?, ?, ?)",
-            (date.today().isoformat(), 350.0, 350.0)  # Valores predeterminados de 350 para USD y EUR
+            (date.today().isoformat(), 350.0, 380.0)  # Valores predeterminados 
         )
         
         db_manager.commit()
@@ -68,6 +80,8 @@ def setup_database(db_path=None, force=False):
         
     except Exception as e:
         print(f"Error al configurar la base de datos: {e}")
+        import traceback
+        traceback.print_exc()
         return False
 
 def setup_configuration():
@@ -78,6 +92,15 @@ def setup_configuration():
         True si la configuración fue exitosa, False en caso contrario
     """
     try:
+        # Importar config
+        if not getattr(sys, 'frozen', False):
+            # Si se ejecuta como script, asegurar que los módulos se puedan importar
+            script_dir = Path(__file__).parent.parent
+            if str(script_dir) not in sys.path:
+                sys.path.insert(0, str(script_dir))
+        
+        from app.utils.config import Config
+        
         print("Configurando aplicación...")
         config = Config()
         
@@ -92,7 +115,33 @@ def setup_configuration():
         
     except Exception as e:
         print(f"Error al configurar la aplicación: {e}")
+        import traceback
+        traceback.print_exc()
         return False
+
+def run_setup(force=False, db_path=None):
+    """
+    Función principal que puede ser importada y ejecutada desde otro módulo
+    
+    Args:
+        force: Si es True, elimina la base de datos existente
+        db_path: Ruta personalizada para la base de datos
+        
+    Returns:
+        True si la configuración fue exitosa, False en caso contrario
+    """
+    print("=== Configuración inicial del Sistema de Facturación ===")
+    
+    # Configurar base de datos
+    if setup_database(db_path, force):
+        # Configurar aplicación
+        if setup_configuration():
+            print("\n¡Configuración completada con éxito!")
+            print("La aplicación está lista para ser utilizada.")
+            return True
+    
+    print("\nError durante la configuración. Revise los mensajes anteriores.")
+    return False
 
 def main():
     """Función principal del script"""
@@ -102,18 +151,10 @@ def main():
     
     args = parser.parse_args()
     
-    print("=== Configuración inicial del Sistema de Facturación ===")
+    # Ejecutar configuración
+    success = run_setup(args.force, args.db_path)
     
-    # Configurar base de datos
-    if setup_database(args.db_path, args.force):
-        # Configurar aplicación
-        if setup_configuration():
-            print("\n¡Configuración completada con éxito!")
-            print("La aplicación está lista para ser utilizada.")
-            return 0
-    
-    print("\nError durante la configuración. Revise los mensajes anteriores.")
-    return 1
+    return 0 if success else 1
 
 if __name__ == "__main__":
     sys.exit(main())

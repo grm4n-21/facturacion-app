@@ -7,6 +7,7 @@ Maneja conexiones, consultas y operaciones sobre la base de datos.
 
 import sqlite3
 import os
+import sys
 from datetime import datetime, date, timedelta
 from pathlib import Path
 
@@ -21,16 +22,22 @@ class DatabaseManager:
             db_path: Ruta al archivo de la base de datos. Si es None, se usa la ruta predeterminada.
         """
         if db_path is None:
-            # Usar ruta relativa desde la ubicación del script
-            current_dir = Path(__file__).parent.parent.parent
-            db_path = current_dir / "data" / "facturacion.db"
+            # Verificar si estamos ejecutando un archivo congelado (exe) o un script normal
+            if getattr(sys, 'frozen', False):
+                # Estamos ejecutando un exe
+                application_path = os.path.dirname(sys.executable)
+                db_path = os.path.join(application_path, "data", "facturacion.db")
+            else:
+                # Estamos ejecutando un script
+                current_dir = Path(__file__).parent.parent.parent
+                db_path = current_dir / "data" / "facturacion.db"
         
         self.db_path = db_path
         self.connection = None
         self.cursor = None
         
         # Crear directorio si no existe
-        os.makedirs(os.path.dirname(self.db_path), exist_ok=True)
+        os.makedirs(os.path.dirname(str(self.db_path)), exist_ok=True)
         
         # Inicializar la base de datos si no existe
         self.connect()
@@ -40,7 +47,7 @@ class DatabaseManager:
     def connect(self):
         """Establece una conexión a la base de datos"""
         try:
-            self.connection = sqlite3.connect(self.db_path)
+            self.connection = sqlite3.connect(str(self.db_path))
             self.cursor = self.connection.cursor()
             return True
         except sqlite3.Error as e:
@@ -168,9 +175,7 @@ class DatabaseManager:
         )
         ''')
         
-        self.commit()
-
-    # Tabla de salidas de caja
+        # Tabla de salidas de caja
         self.execute('''
         CREATE TABLE IF NOT EXISTS salidas_caja (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
