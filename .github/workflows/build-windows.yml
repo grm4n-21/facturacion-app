@@ -25,4 +25,36 @@ jobs:
     - name: Build executable
       run: |
         pyinstaller --name Sistema_de_Facturacion --onefile app/main.py
-        dir dist
+    
+    - name: Prepare distribution package
+      run: |
+        mkdir -p windows_dist/data
+        mkdir -p windows_dist/scripts
+        
+        # Copy script if exists
+        if (Test-Path "scripts/setup.py") {
+          Copy-Item -Path "scripts/setup.py" -Destination "windows_dist/scripts/"
+        } else {
+          New-Item -ItemType Directory -Force -Path "windows_dist/scripts"
+          Set-Content -Path "windows_dist/scripts/setup.py" -Value "# Placeholder setup script"
+        }
+        
+        # Copy executable
+        Copy-Item -Path "dist/Sistema_de_Facturacion.exe" -Destination "windows_dist/"
+        
+        # Create README
+        Set-Content -Path "windows_dist/README.txt" -Value "Sistema de Facturacion v1.0"
+        
+        # Create ZIP archive
+        Compress-Archive -Path "windows_dist/*" -DestinationPath "Sistema_de_Facturacion_Windows.zip" -Force
+      shell: pwsh
+    
+    - name: Create Release
+      id: create_release
+      uses: ncipollo/release-action@v1
+      with:
+        artifacts: "Sistema_de_Facturacion_Windows.zip,dist/Sistema_de_Facturacion.exe"
+        tag: "v${{ github.run_number }}"
+        name: "Release v${{ github.run_number }}"
+        body: "Ejecutable compilado automáticamente"
+        token: ${{ secrets.GITHUB_TOKEN }}
