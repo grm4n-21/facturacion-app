@@ -23,47 +23,45 @@ jobs:
         python -m pip install --upgrade pip
         pip install pyinstaller
         pip install PyQt6
-        # Instala otras dependencias que tu aplicación necesite
-        # pip install otras-dependencias
     
     - name: Build executable
       run: |
-        mkdir -p dist
-        mkdir -p dist/data
-        mkdir -p dist/scripts
-        if (Test-Path "scripts/setup.py") {
-          copy scripts/setup.py dist/scripts/
-        } else {
-          echo "Warning: setup.py not found"
-          mkdir -p scripts
-          echo "# Placeholder setup script" > scripts/setup.py
-          copy scripts/setup.py dist/scripts/
-        }
-        pyinstaller --name Sistema_de_Facturacion --onefile --windowed app/main.py
+        pyinstaller --name Sistema_de_Facturacion --onefile app/main.py
     
     - name: Prepare distribution package
       run: |
         mkdir -p windows_dist
         mkdir -p windows_dist/data
         mkdir -p windows_dist/scripts
-        copy scripts/setup.py windows_dist/scripts/
-        copy dist/Sistema_de_Facturacion.exe windows_dist/
-        echo "Sistema de Facturacion v1.0" > windows_dist/README.txt
+        
+        # Copy script if exists
+        if (Test-Path "scripts/setup.py") {
+          mkdir -p windows_dist/scripts
+          Copy-Item -Path "scripts/setup.py" -Destination "windows_dist/scripts/"
+        } else {
+          mkdir -p windows_dist/scripts
+          Set-Content -Path "windows_dist/scripts/setup.py" -Value "# Placeholder setup script"
+        }
+        
+        # Copy executable
+        Copy-Item -Path "dist/Sistema_de_Facturacion.exe" -Destination "windows_dist/"
+        
+        # Create README
+        Set-Content -Path "windows_dist/README.txt" -Value "Sistema de Facturacion v1.0"
+        
+        # Create ZIP archive
+        Compress-Archive -Path "windows_dist/*" -DestinationPath "Sistema_de_Facturacion_Windows.zip" -Force
       shell: pwsh
     
-    - name: Create ZIP archive
-      run: |
-        Compress-Archive -Path windows_dist/* -DestinationPath Sistema_de_Facturacion_Windows.zip -Force
-      shell: pwsh
+    # GitHub Pages approach to share artifacts
+    - name: Setup Pages
+      uses: actions/configure-pages@v3
     
-    - name: Upload executable
-      uses: actions/upload-artifact@v2
+    - name: Upload artifact
+      uses: actions/upload-pages-artifact@v1
       with:
-        name: Sistema_de_Facturacion_exe
-        path: dist/Sistema_de_Facturacion.exe
+        path: 'windows_dist'
     
-    - name: Upload distribution package
-      uses: actions/upload-artifact@v2
-      with:
-        name: Sistema_de_Facturacion_Full
-        path: Sistema_de_Facturacion_Windows.zip
+    - name: Deploy to GitHub Pages
+      id: deployment
+      uses: actions/deploy-pages@v1
