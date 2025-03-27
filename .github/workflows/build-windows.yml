@@ -1,0 +1,57 @@
+name: Build Windows Executable
+
+on:
+  push:
+    branches: [ master, main ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-latest
+    
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: 3.9
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install pyinstaller
+        pip install PyQt6
+        # Instala otras dependencias que tu aplicación necesite
+        # pip install otras-dependencias
+    
+    - name: Build executable
+      run: |
+        mkdir -p dist/data
+        mkdir -p dist/scripts
+        copy scripts\setup.py dist\scripts\
+        pyinstaller --name Sistema_de_Facturacion --onefile --windowed app/main.py
+    
+    - name: Prepare distribution package
+      run: |
+        mkdir -p windows_dist/data
+        mkdir -p windows_dist/scripts
+        copy scripts\setup.py windows_dist\scripts\
+        copy dist\Sistema_de_Facturacion.exe windows_dist\
+        echo "Sistema de Facturacion v1.0" > windows_dist\README.txt
+    
+    - name: Create ZIP archive
+      run: |
+        Compress-Archive -Path windows_dist\* -DestinationPath Sistema_de_Facturacion_Windows.zip
+    
+    - name: Upload executable
+      uses: actions/upload-artifact@v3
+      with:
+        name: Sistema_de_Facturacion_exe
+        path: dist\Sistema_de_Facturacion.exe
+    
+    - name: Upload distribution package
+      uses: actions/upload-artifact@v3
+      with:
+        name: Sistema_de_Facturacion_Full
+        path: Sistema_de_Facturacion_Windows.zip
