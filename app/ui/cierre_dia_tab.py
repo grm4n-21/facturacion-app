@@ -12,8 +12,8 @@ from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QFormLayout,
                             QScrollArea, QSizePolicy, QGridLayout, QSpinBox)
 from PyQt6.QtCore import Qt, QDate
 from PyQt6.QtGui import QFont, QColor
-from datetime import datetime, date, timedelta
-
+import datetime
+from datetime import date
 from app.services.facturacion import FacturacionService
 from app.services.salidas_service import SalidasService
 from app.services.cierre_dia import CierreDiaService
@@ -63,7 +63,7 @@ class CierreDiaTab(QWidget):
         container_layout = QVBoxLayout(container_widget)
         
         # Título/Fecha
-        fecha_actual = datetime.date.today().strftime("%d/%m/%Y")
+        fecha_actual = date.today().strftime("%d/%m/%Y")        
         titulo_label = QLabel(f"CIERRE DE CAJA - {fecha_actual}")
         titulo_label.setStyleSheet("font-size: 16px; font-weight: bold; margin-bottom: 10px;")
         titulo_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -364,10 +364,16 @@ class CierreDiaTab(QWidget):
     
     def actualizar_resumen(self):
         """Actualiza el resumen de entradas y salidas del día"""
-        fecha = self.fecha_selector.date().toString("yyyy-MM-dd")
+        # Ya no filtramos por fecha, simplemente obtenemos todas las facturas sin cerrar
+        print("\nActualizando resumen de facturas abiertas")
         
-        # Obtener facturas sin cerrar para esta fecha
-        self.db_facturas = self.facturacion_service.obtener_facturas_por_fecha(fecha, fecha)
+        # Obtener TODAS las facturas sin cerrar
+        self.db_facturas = self.cierre_service.obtener_facturas_sin_cerrar()
+        print(f"Total facturas sin cerrar: {len(self.db_facturas)}")
+        
+        # Obtener todas las salidas sin cerrar
+        salidas = self.cierre_service.obtener_salidas_sin_cerrar()
+        print(f"Total salidas sin cerrar: {len(salidas)}")
         
         # Calcular totales de entradas
         total_entradas_usd = 0
@@ -376,27 +382,16 @@ class CierreDiaTab(QWidget):
         total_entradas_transfer = 0
         
         for factura in self.db_facturas:
-            # Usar getattr para manejar casos donde el atributo podría no existir
-            # y proporcionar un valor predeterminado de 0
-            pago_usd = getattr(factura, 'pago_usd', 0) 
-            if pago_usd is None: pago_usd = 0
-            
-            pago_eur = getattr(factura, 'pago_eur', 0)
-            if pago_eur is None: pago_eur = 0
-            
-            pago_cup = getattr(factura, 'pago_cup', 0)
-            if pago_cup is None: pago_cup = 0
-            
-            pago_transferencia = getattr(factura, 'pago_transferencia', 0)
-            if pago_transferencia is None: pago_transferencia = 0
+            # Obtener valores con manejo para None
+            pago_usd = factura.get('pago_usd', 0) or 0
+            pago_eur = factura.get('pago_eur', 0) or 0
+            pago_cup = factura.get('pago_cup', 0) or 0
+            pago_transferencia = factura.get('pago_transferencia', 0) or 0
             
             total_entradas_usd += pago_usd
             total_entradas_eur += pago_eur
             total_entradas_cup += pago_cup
             total_entradas_transfer += pago_transferencia
-        
-        # Obtener salidas para esta fecha
-        salidas = self.salidas_service.obtener_salidas_por_fecha(fecha, fecha)
         
         # Calcular totales de salidas
         total_salidas_usd = 0
@@ -405,7 +400,6 @@ class CierreDiaTab(QWidget):
         total_salidas_transfer = 0
         
         for salida in salidas:
-            # Asegurarse de que los valores None se manejen como 0
             monto_usd = salida.get('monto_usd', 0) or 0
             monto_eur = salida.get('monto_eur', 0) or 0
             monto_cup = salida.get('monto_cup', 0) or 0
@@ -421,8 +415,7 @@ class CierreDiaTab(QWidget):
         balance_eur = total_entradas_eur - total_salidas_eur
         balance_cup = total_entradas_cup - total_salidas_cup
         balance_transfer = total_entradas_transfer - total_salidas_transfer
-        
-        # Imprimir valores para depuración
+            # Imprimir valores para depuración
         print(f"Entradas - USD: {total_entradas_usd}, EUR: {total_entradas_eur}, CUP: {total_entradas_cup}, Transfer: {total_entradas_transfer}")
         print(f"Salidas - USD: {total_salidas_usd}, EUR: {total_salidas_eur}, CUP: {total_salidas_cup}, Transfer: {total_salidas_transfer}")
         print(f"Balance - USD: {balance_usd}, EUR: {balance_eur}, CUP: {balance_cup}, Transfer: {balance_transfer}")
@@ -461,7 +454,18 @@ class CierreDiaTab(QWidget):
         
         # Calcular diferencias
         self.calcular_totales()
-    
+        
+        # Actualizar el título para reflejar que estamos viendo todas las facturas abiertas
+        try:
+            # Buscar el QLabel del título
+            for widget in self.findChildren(QLabel):
+                if "CIERRE DE CAJA" in widget.text():
+                    # Modificar el texto para indicar que son todas las facturas abiertas
+                    widget.setText("CIERRE DE CAJA - FACTURAS ABIERTAS")
+                    break
+        except:
+            pass
+            
     def calcular_totales(self):
         """Calcula los totales de billetes contados y las diferencias"""
         # Calcular total USD
@@ -616,7 +620,7 @@ class CierreDiaTab(QWidget):
         fecha_str = self.fecha_selector.date().toString("yyyy-MM-dd")
         
         # Verificar si es la fecha de hoy
-        if fecha_str != datetime.date.today().isoformat():
+        if fecha_str != date.today().isoformat():
             respuesta = QMessageBox.question(
                 self,
                 "Confirmar cierre para otra fecha",

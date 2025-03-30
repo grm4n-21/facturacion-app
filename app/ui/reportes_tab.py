@@ -760,7 +760,7 @@ class ReportesTab(QWidget):
             return
         
         # Solicitar ubicación para guardar el archivo
-        nombre_default = f"cierres_dia_{datetime.date.today().strftime('%Y%m%d')}.csv"
+        nombre_default = f"cierres_dia_{date.today().strftime('%Y%m%d')}.csv"
         
         ruta_archivo, _ = QFileDialog.getSaveFileName(
             self,

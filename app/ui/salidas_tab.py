@@ -12,10 +12,10 @@ from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QFormLayout,
                             QScrollArea, QSizePolicy)
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QDoubleValidator, QRegularExpressionValidator, QColor
-from datetime import datetime, date, timedelta
+from datetime import date, timedelta
 import os
 from pathlib import Path
-
+import datetime
 from app.services.salidas_service import SalidasService
 
 class SalidasTab(QWidget):
@@ -51,7 +51,7 @@ class SalidasTab(QWidget):
         container_layout = QVBoxLayout(container_widget)
         
         # Título/Fecha
-        fecha_actual = datetime.date.today().strftime("%d/%m/%Y")
+        fecha_actual = date.today().strftime("%d/%m/%Y")        
         titulo_label = QLabel(f"SALIDAS DE CAJA - {fecha_actual}")
         titulo_label.setStyleSheet("font-size: 16px; font-weight: bold; margin-bottom: 10px;")
         titulo_label.setAlignment(Qt.AlignmentFlag.AlignCenter)

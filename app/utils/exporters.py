@@ -76,7 +76,7 @@ class JSONExporter:
             
             # Convertir datetime a strings
             def json_serial(obj):
-                if isinstance(obj, (datetime.datetime, datetime.date)):
+                if isinstance(obj, (datetime, date)):
                     return obj.isoformat()
                 raise TypeError(f"Type {type(obj)} not serializable")
             
@@ -203,7 +203,7 @@ class ReportExporter:
                 data = {
                     'tasas_cambio': tasas,
                     'metadata': {
-                        'fecha_exportacion': datetime.datetime.now().isoformat(),
+                        'fecha_exportacion': datetime.now().isoformat(),
                         'total_registros': len(tasas)
                     }
                 }

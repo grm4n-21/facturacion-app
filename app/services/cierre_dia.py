@@ -93,7 +93,7 @@ class CierreDiaService:
         """
         try:
             # Obtener fecha actual
-            fecha_hoy = datetime.date.today().isoformat()
+            fecha_hoy = date.today().isoformat()
             
             # Verificar si ya hay un cierre para hoy
             hay_cierre, _ = self.verificar_dia_actual()
@@ -359,7 +359,7 @@ class CierreDiaService:
                 Diccionario con resumen del período
             """
             try:
-                fecha_limite = (datetime.date.today() - datetime.timedelta(days=dias)).isoformat()
+                fecha_limite = (date.today() - timedelta(days=dias)).isoformat()
                 
                 self.db.connect()
                 resultado = self.db.fetch_all(
@@ -406,7 +406,7 @@ class CierreDiaService:
             Returns:
                 Tupla (hay_cierre, fecha_ultimo_cierre)
             """
-            fecha_hoy = datetime.date.today().isoformat()
+            fecha_hoy = date.today().isoformat()
             
             self.db.connect()
             resultado = self.db.fetch_one(

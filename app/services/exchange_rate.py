@@ -3,8 +3,9 @@
 """
 Servicio para la gestión de tasas de cambio.
 """
+import datetime
 
-from datetime import datetime, date, timedelta
+from datetime import date, timedelta
 from app.database.db_manager import DatabaseManager
 
 class ExchangeRateService:
@@ -24,10 +25,9 @@ class ExchangeRateService:
             Diccionario con las tasas actuales
         """
         try:
-            # Obtener la fecha actual
-            fecha_hoy = datetime.date.today().isoformat()
             
-            # Conectar a la base de datos
+# Obtener la fecha actual
+            fecha_hoy = date.today().isoformat()            # Conectar a la base de datos
             self.db.connect()
             
             # Intentar obtener las tasas para la fecha actual
@@ -93,7 +93,7 @@ class ExchangeRateService:
                 return False
                 
             # Obtener la fecha actual
-            fecha_hoy = datetime.date.today().isoformat()
+            fecha_hoy = date.today().isoformat()
             
             # Insertar o actualizar en la base de datos
             self.db.connect()

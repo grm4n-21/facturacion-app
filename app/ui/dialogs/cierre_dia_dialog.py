@@ -46,7 +46,7 @@ class CierreDiaDialog(QDialog):
         info_layout = QVBoxLayout()
         
         # Fecha
-        fecha_hoy = datetime.date.today().strftime("%d/%m/%Y")
+        fecha_hoy = date.today().strftime("%d/%m/%Y")
         fecha_label = QLabel(f"Fecha: {fecha_hoy}")
         fecha_label.setStyleSheet("font-weight: bold;")
         info_layout.addWidget(fecha_label)

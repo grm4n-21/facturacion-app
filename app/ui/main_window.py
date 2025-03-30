@@ -67,7 +67,7 @@ class MainWindow(QMainWindow):
         self.setStatusBar(self.statusBar)
 
         # Agregar fecha actual a la barra de estado
-        fecha_actual = datetime.date.today().strftime("%d/%m/%Y")
+        fecha_actual = date.today().strftime("%d/%m/%Y")
         self.fecha_label = QLabel(f"Fecha: {fecha_actual}")
         self.statusBar.addPermanentWidget(self.fecha_label)
         self.statusBar.showMessage("Listo")
@@ -200,11 +200,10 @@ class MainWindow(QMainWindow):
         
         # Si no hay cierre para hoy y hay un último cierre (de otro día)
         if not hay_cierre and ultimo_cierre:
-            fecha_hoy = datetime.date.today().isoformat()
-            
+            fecha_hoy = date.today().isoformat()            
             # Si el último cierre no es de ayer, significa que hay días sin cerrar
-            fecha_ultimo = datetime.date.fromisoformat(ultimo_cierre)
-            fecha_ayer = datetime.date.today() - datetime.timedelta(days=1)
+            fecha_ultimo = date.fromisoformat(ultimo_cierre)
+            fecha_ayer = date.today() - timedelta(days=1)
             
             if fecha_ultimo < fecha_ayer:
                 # Hay días sin cerrar
@@ -229,7 +228,7 @@ class MainWindow(QMainWindow):
     
     def actualizar_fecha(self):
         """Actualiza la etiqueta de fecha cuando cambia el día"""
-        fecha_actual = datetime.date.today().strftime("%d/%m/%Y")
+        fecha_actual = date.today().strftime("%d/%m/%Y")
         self.fecha_label.setText(f"Fecha: {fecha_actual}")
         
         # Reiniciar el temporizador para la próxima medianoche
@@ -274,13 +273,14 @@ class MainWindow(QMainWindow):
         fechas_layout = QHBoxLayout()
         fechas_layout.addWidget(QLabel("Desde:"))
         desde_date = QDateEdit()
-        desde_date.setDate(datetime.date.today().replace(day=1))  # Primer día del mes
+        desde_date.setDate(date.today().replace(day=1))
         desde_date.setCalendarPopup(True)
         fechas_layout.addWidget(desde_date)
         
         fechas_layout.addWidget(QLabel("Hasta:"))
         hasta_date = QDateEdit()
-        hasta_date.setDate(datetime.date.today())  # Hoy
+        hasta_date.setDate(date.today())
+
         hasta_date.setCalendarPopup(True)
         fechas_layout.addWidget(hasta_date)
         

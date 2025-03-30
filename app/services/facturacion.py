@@ -202,8 +202,8 @@ class FacturacionService:
                         pago_eur=row[6],
                         pago_cup=row[7],
                         pago_transferencia=row[8],
-                        fecha=datetime.datetime.fromisoformat(row[9].replace("Z", "+00:00")) 
-                            if "Z" in row[9] else datetime.datetime.fromisoformat(row[9])
+                        fecha=datetime.fromisoformat(row[9].replace("Z", "+00:00")) 
+                            if "Z" in row[9] else datetime.fromisoformat(row[9])
                     )
                 else:
                     factura = Factura.from_db_row(row)
@@ -215,7 +215,7 @@ class FacturacionService:
         except Exception as e:
             print(f"Error al obtener facturas recientes: {e}")
             return []
-    
+        
     def obtener_facturas_por_fecha(self, fecha_inicio: str, fecha_fin: str) -> List[Factura]:
         """
         Obtiene las facturas en un rango de fechas
@@ -250,8 +250,8 @@ class FacturacionService:
                     monto=row[2],
                     moneda=row[3],
                     monto_equivalente=row[4],
-                    fecha=datetime.datetime.fromisoformat(row[9].replace("Z", "+00:00")) 
-                        if "Z" in row[9] else datetime.datetime.fromisoformat(row[9])
+                    fecha=datetime.fromisoformat(row[9].replace("Z", "+00:00")) 
+                        if "Z" in row[9] else datetime.fromisoformat(row[9])
                 )
                 
                 # Agregar explícitamente los campos de pago
