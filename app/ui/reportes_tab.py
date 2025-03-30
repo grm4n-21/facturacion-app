@@ -8,7 +8,7 @@ from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QFormLayout,
                             QLabel, QLineEdit, QPushButton, QDateEdit,
                             QTableWidget, QTableWidgetItem, QGroupBox,
                             QMessageBox, QFileDialog, QHeaderView, QTabWidget,
-                            QComboBox, QSplitter)
+                            QComboBox, QSplitter,QCheckBox)
 from PyQt6.QtCore import Qt, QDate
 from PyQt6.QtGui import QColor
 from datetime import datetime, date, timedelta
@@ -74,7 +74,10 @@ class ReportesTab(QWidget):
         
         # Grupo: Filtros de reporte
         filtros_group = QGroupBox("Filtros de Reporte")
-        filtros_layout = QHBoxLayout()
+        filtros_layout = QVBoxLayout()  # Cambiado a vertical para mejor organización
+        
+        # Sección superior con fechas y filtros básicos
+        fecha_filtros_layout = QHBoxLayout()
         
         # Fechas
         fecha_layout = QFormLayout()
@@ -91,7 +94,7 @@ class ReportesTab(QWidget):
         self.factura_fecha_fin.setCalendarPopup(True)
         fecha_layout.addRow("Hasta:", self.factura_fecha_fin)
         
-        filtros_layout.addLayout(fecha_layout)
+        fecha_filtros_layout.addLayout(fecha_layout)
         
         # Filtros adicionales
         filtros_extra_layout = QFormLayout()
@@ -104,7 +107,7 @@ class ReportesTab(QWidget):
         self.filtro_min_monto.setPlaceholderText("Monto mínimo")
         filtros_extra_layout.addRow("Monto mín:", self.filtro_min_monto)
         
-        filtros_layout.addLayout(filtros_extra_layout)
+        fecha_filtros_layout.addLayout(filtros_extra_layout)
         
         # Botones
         botones_layout = QVBoxLayout()
@@ -117,37 +120,65 @@ class ReportesTab(QWidget):
         self.exportar_facturas_btn.clicked.connect(self.exportar_facturas_csv)
         botones_layout.addWidget(self.exportar_facturas_btn)
         
-        filtros_layout.addLayout(botones_layout)
-        filtros_group.setLayout(filtros_layout)
+        fecha_filtros_layout.addLayout(botones_layout)
         
-        # Tabla de reporte
+        # Añadir la sección superior al layout de filtros
+        filtros_layout.addLayout(fecha_filtros_layout)
+        
+        # Sección de filtros de tipo de pago
+        tipo_pago_layout = QHBoxLayout()
+        
+        # Crear checkboxes para filtrar por tipo de pago
+        self.filtro_incluir_usd = QCheckBox("Incluir pagos en USD")
+        self.filtro_incluir_eur = QCheckBox("Incluir pagos en EUR")
+        self.filtro_incluir_cup = QCheckBox("Incluir pagos en CUP")
+        self.filtro_incluir_transferencia = QCheckBox("Incluir pagos por transferencia")
+        
+        # Por defecto todos marcados
+        self.filtro_incluir_usd.setChecked(True)
+        self.filtro_incluir_eur.setChecked(True)
+        self.filtro_incluir_cup.setChecked(True)
+        self.filtro_incluir_transferencia.setChecked(True)
+        
+        tipo_pago_layout.addWidget(self.filtro_incluir_usd)
+        tipo_pago_layout.addWidget(self.filtro_incluir_eur)
+        tipo_pago_layout.addWidget(self.filtro_incluir_cup)
+        tipo_pago_layout.addWidget(self.filtro_incluir_transferencia)
+            
+            # Añadir la sección de filtros de tipo de pago al layout de filtros
+        filtros_layout.addLayout(tipo_pago_layout)
+            
+            # Establecer el layout para el grupo de filtros
+        filtros_group.setLayout(filtros_layout)
+            
+            # Tabla de reporte
         self.facturas_table = QTableWidget()
         self.facturas_table.setColumnCount(9)
         self.facturas_table.setHorizontalHeaderLabels([
-            "ID Orden", "Monto", "Moneda", "USD", "EUR", "CUP", "Transfer", 
-            "Equivalente", "Fecha"
-        ])
+                "ID Orden", "Monto", "Moneda", "USD", "EUR", "CUP", "Transfer", 
+                "Equivalente", "Fecha"
+            ])
         self.facturas_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
-        
-        # Panel de totales
+            
+            # Panel de totales
         totales_group = QGroupBox("Resumen")
         totales_layout = QHBoxLayout()
-        
+            
         self.total_facturas = QLabel("Facturas: 0")
         self.total_usd = QLabel("Total USD: $0.00")
         self.total_eur = QLabel("Total EUR: €0.00")
         self.total_cup = QLabel("Total CUP: $0.00")
         self.total_transferencia = QLabel("Total Transferencia: $0.00")
-        
+            
         totales_layout.addWidget(self.total_facturas)
         totales_layout.addWidget(self.total_usd)
         totales_layout.addWidget(self.total_eur)
         totales_layout.addWidget(self.total_cup)
         totales_layout.addWidget(self.total_transferencia)
-        
+            
         totales_group.setLayout(totales_layout)
-        
-        # Añadir todo al layout principal
+            
+            # Añadir todo al layout principal
         layout.addWidget(filtros_group)
         layout.addWidget(self.facturas_table)
         layout.addWidget(totales_group)
@@ -452,92 +483,127 @@ class ReportesTab(QWidget):
         self.generar_consolidado()
     
     def generar_reporte_facturas(self):
+       
         """Genera un reporte de facturas según los filtros seleccionados"""
-        # Obtener fechas
-        fecha_inicio = self.factura_fecha_inicio.date().toString("yyyy-MM-dd")
-        fecha_fin = self.factura_fecha_fin.date().toString("yyyy-MM-dd")
-        
-        # Validar fechas
-        if self.factura_fecha_inicio.date() > self.factura_fecha_fin.date():
-            QMessageBox.warning(self, "Error", "La fecha de inicio debe ser anterior a la fecha final")
-            return
-        
-        # Obtener facturas filtradas
-        facturas = self.facturacion_service.obtener_facturas_por_fecha(fecha_inicio, fecha_fin)
-        
-        # Aplicar filtros adicionales
-        moneda_filtro = self.filtro_moneda.currentText()
-        if moneda_filtro != "Todas":
-            facturas = [f for f in facturas if f.moneda == moneda_filtro]
-        
-        min_monto_texto = self.filtro_min_monto.text()
-        if min_monto_texto:
-            try:
-                min_monto = float(min_monto_texto)
-                facturas = [f for f in facturas if f.monto >= min_monto]
-            except ValueError:
-                pass  # Ignorar si no es un número válido
-        
-        # Limpiar tabla
-        self.facturas_table.setRowCount(0)
-        
-        # Variables para totales
-        total_usd = 0.0
-        total_eur = 0.0
-        total_cup = 0.0
-        total_transferencia = 0.0
-        
-        # Llenar tabla con datos
-        for i, factura in enumerate(facturas):
-            self.facturas_table.insertRow(i)
+        try:
+            print("\n--- INICIANDO GENERACIÓN DE REPORTE DE FACTURAS ---")
             
-            # Crear items para cada columna
-            orden_id_item = QTableWidgetItem(factura.orden_id)
-            monto_item = QTableWidgetItem(f"{factura.monto:.2f}")
-            moneda_item = QTableWidgetItem(factura.moneda)
+            # Obtener fechas
+            fecha_inicio = self.factura_fecha_inicio.date().toString("yyyy-MM-dd")
+            fecha_fin = self.factura_fecha_fin.date().toString("yyyy-MM-dd")
+            print(f"Periodo seleccionado: {fecha_inicio} a {fecha_fin}")
             
-            # Pagos en diferentes monedas
-            pago_usd = getattr(factura, 'pago_usd', 0) or 0
-            pago_eur = getattr(factura, 'pago_eur', 0) or 0
-            pago_cup = getattr(factura, 'pago_cup', 0) or 0
-            pago_transferencia = getattr(factura, 'pago_transferencia', 0) or 0
+            # Validar fechas
+            if self.factura_fecha_inicio.date() > self.factura_fecha_fin.date():
+                QMessageBox.warning(self, "Error", "La fecha de inicio debe ser anterior a la fecha final")
+                return
             
-            usd_item = QTableWidgetItem(f"{pago_usd:.2f}")
-            eur_item = QTableWidgetItem(f"{pago_eur:.2f}")
-            cup_item = QTableWidgetItem(f"{pago_cup:.2f}")
-            transferencia_item = QTableWidgetItem(f"{pago_transferencia:.2f}")
+            # Obtener facturas filtradas
+            print("Consultando facturas en la base de datos...")
+            facturas = self.facturacion_service.obtener_facturas_por_fecha(fecha_inicio, fecha_fin)
+            print(f"Se encontraron {len(facturas)} facturas en la base de datos")
             
-            equivalente_item = QTableWidgetItem(f"{factura.monto_equivalente:.2f}")
-            fecha_item = QTableWidgetItem(factura.fecha.strftime("%Y-%m-%d %H:%M"))
+            # Aplicar filtros adicionales
+            moneda_filtro = self.filtro_moneda.currentText()
+            if moneda_filtro != "Todas":
+                print(f"Aplicando filtro de moneda: {moneda_filtro}")
+                facturas = [f for f in facturas if f.moneda == moneda_filtro]
+                print(f"Quedan {len(facturas)} facturas después del filtro de moneda")
             
-            # Alinear números a la derecha
-            for item in [monto_item, usd_item, eur_item, cup_item, transferencia_item, equivalente_item]:
-                item.setTextAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+            min_monto_texto = self.filtro_min_monto.text()
+            if min_monto_texto:
+                try:
+                    min_monto = float(min_monto_texto)
+                    print(f"Aplicando filtro de monto mínimo: {min_monto}")
+                    facturas = [f for f in facturas if f.monto >= min_monto]
+                    print(f"Quedan {len(facturas)} facturas después del filtro de monto")
+                except ValueError:
+                    print(f"Error: el monto '{min_monto_texto}' no es un número válido")
+                    pass  # Ignorar si no es un número válido
             
-            # Añadir items a la tabla
-            self.facturas_table.setItem(i, 0, orden_id_item)
-            self.facturas_table.setItem(i, 1, monto_item)
-            self.facturas_table.setItem(i, 2, moneda_item)
-            self.facturas_table.setItem(i, 3, usd_item)
-            self.facturas_table.setItem(i, 4, eur_item)
-            self.facturas_table.setItem(i, 5, cup_item)
-            self.facturas_table.setItem(i, 6, transferencia_item)
-            self.facturas_table.setItem(i, 7, equivalente_item)
-            self.facturas_table.setItem(i, 8, fecha_item)
+            # Limpiar tabla
+            print("Limpiando tabla de resultados...")
+            self.facturas_table.setRowCount(0)
             
-            # Actualizar totales
-            total_usd += pago_usd
-            total_eur += pago_eur
-            total_cup += pago_cup
-            total_transferencia += pago_transferencia
-        
-        # Actualizar etiquetas de totales
-        self.total_facturas.setText(f"Facturas: {len(facturas)}")
-        self.total_usd.setText(f"Total USD: ${total_usd:.2f}")
-        self.total_eur.setText(f"Total EUR: €{total_eur:.2f}")
-        self.total_cup.setText(f"Total CUP: ${total_cup:.2f}")
-        self.total_transferencia.setText(f"Total Transferencia: ${total_transferencia:.2f}")
-    
+            # Variables para totales
+            total_usd = 0.0
+            total_eur = 0.0
+            total_cup = 0.0
+            total_transferencia = 0.0
+            
+            # Llenar tabla con datos
+            print(f"Llenando tabla con {len(facturas)} facturas...")
+            for i, factura in enumerate(facturas):
+                try:
+                    self.facturas_table.insertRow(i)
+                    
+                    # Crear items para cada columna
+                    orden_id_item = QTableWidgetItem(str(factura.orden_id))
+                    monto_item = QTableWidgetItem(f"{factura.monto:.2f}")
+                    moneda_item = QTableWidgetItem(factura.moneda)
+                    
+                    # Pagos en diferentes monedas
+                    pago_usd = getattr(factura, 'pago_usd', 0) or 0
+                    pago_eur = getattr(factura, 'pago_eur', 0) or 0
+                    pago_cup = getattr(factura, 'pago_cup', 0) or 0
+                    pago_transferencia = getattr(factura, 'pago_transferencia', 0) or 0
+                    
+                    usd_item = QTableWidgetItem(f"{pago_usd:.2f}")
+                    eur_item = QTableWidgetItem(f"{pago_eur:.2f}")
+                    cup_item = QTableWidgetItem(f"{pago_cup:.2f}")
+                    transferencia_item = QTableWidgetItem(f"{pago_transferencia:.2f}")
+                    
+                    equivalente_item = QTableWidgetItem(f"{factura.monto_equivalente:.2f}")
+                    fecha_item = QTableWidgetItem(factura.fecha.strftime("%Y-%m-%d %H:%M"))
+                    
+                    # Alinear números a la derecha
+                    for item in [monto_item, usd_item, eur_item, cup_item, transferencia_item, equivalente_item]:
+                        item.setTextAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+                    
+                    # Añadir items a la tabla
+                    self.facturas_table.setItem(i, 0, orden_id_item)
+                    self.facturas_table.setItem(i, 1, monto_item)
+                    self.facturas_table.setItem(i, 2, moneda_item)
+                    self.facturas_table.setItem(i, 3, usd_item)
+                    self.facturas_table.setItem(i, 4, eur_item)
+                    self.facturas_table.setItem(i, 5, cup_item)
+                    self.facturas_table.setItem(i, 6, transferencia_item)
+                    self.facturas_table.setItem(i, 7, equivalente_item)
+                    self.facturas_table.setItem(i, 8, fecha_item)
+                    
+                    # Actualizar totales
+                    total_usd += pago_usd
+                    total_eur += pago_eur
+                    total_cup += pago_cup
+                    total_transferencia += pago_transferencia
+                    
+                except Exception as e:
+                    print(f"Error procesando factura #{i+1}: {e}")
+            
+            # IMPORTANTE: Este código debe estar FUERA del bucle for y del bloque except
+            # Actualizar etiquetas de totales - FUERA DEL BUCLE
+            print("Actualizando etiquetas de totales...")
+            self.total_facturas.setText(f"Facturas: {len(facturas)}")
+            self.total_usd.setText(f"Total USD: ${total_usd:.2f}")
+            self.total_eur.setText(f"Total EUR: €{total_eur:.2f}")
+            self.total_cup.setText(f"Total CUP: ${total_cup:.2f}")
+            self.total_transferencia.setText(f"Total Transferencia: ${total_transferencia:.2f}")
+            
+            # Forzar actualización de la interfaz - FUERA DEL BUCLE
+            self.facturas_table.update()
+            
+            print(f"Reporte generado exitosamente: {len(facturas)} facturas mostradas.")
+            
+            # Si no hay resultados, mostrar mensaje - FUERA DEL BUCLE
+            if len(facturas) == 0:
+                QMessageBox.information(self, "Sin resultados", 
+                                        "No se encontraron facturas que coincidan con los filtros seleccionados.")
+                                            
+        except Exception as e:
+            print(f"ERROR GENERAL al generar reporte: {e}")
+            import traceback
+            traceback.print_exc()
+            QMessageBox.critical(self, "Error", f"Ocurrió un error al generar el reporte:\n{str(e)}")
     def exportar_facturas_csv(self):
         """Exporta el reporte de facturas actual a un archivo CSV"""
         # Verificar si hay datos para exportar
@@ -599,74 +665,147 @@ class ReportesTab(QWidget):
     
     def cargar_cierres_dia(self):
         """Carga la lista de cierres de día"""
-        # Determinar el límite según el periodo seleccionado
-        limite = 30  # Por defecto: último mes
-        periodo_idx = self.cierre_periodo_combo.currentIndex()
-        if periodo_idx == 1:  # Últimos 3 meses
-            limite = 90
-        elif periodo_idx == 2:  # Último año
-            limite = 365
-        elif periodo_idx == 3:  # Todo
-            limite = None
+        try:
+            print("\n--- INICIANDO CARGA DE CIERRES DE DÍA ---")
+            
+            # Determinar el límite según el periodo seleccionado
+            limite = 30  # Por defecto: último mes
+            periodo_idx = self.cierre_periodo_combo.currentIndex()
+            if periodo_idx == 1:  # Últimos 3 meses
+                limite = 90
+            elif periodo_idx == 2:  # Último año
+                limite = 365
+            elif periodo_idx == 3:  # Todo
+                limite = None
+            
+            print(f"Consultando cierres con límite: {limite} días")
+            
+            # Obtener cierres de día
+            cierres = self.cierre_service.obtener_historial_cierres(limite)
+            print(f"Se encontraron {len(cierres)} cierres de día")
+            
+            if not cierres:
+                print("No se encontraron cierres en este periodo")
+                # Podríamos añadir aquí código para diagnosticar si hay cierres en la base de datos
+            
+            # Limpiar tabla
+            print("Limpiando tabla de resultados...")
+            self.cierres_table.setRowCount(0)
+            
+            # Llenar tabla con datos
+            print(f"Llenando tabla con {len(cierres)} cierres...")
+            for i, cierre in enumerate(cierres):
+                try:
+                    self.cierres_table.insertRow(i)
+                    
+                    # Verificar que el cierre tenga los campos esperados
+                    if 'id' not in cierre or 'fecha' not in cierre:
+                        print(f"Cierre #{i+1} incompleto. Campos disponibles: {cierre.keys()}")
+                    
+                    # Crear items para cada columna
+                    id_item = QTableWidgetItem(str(cierre.get('id', 'N/A')))
+                    fecha_item = QTableWidgetItem(str(cierre.get('fecha', 'N/A')))
+                    
+                    # Datos numéricos con manejo de errores
+                    try:
+                        total_usd = cierre.get('total_usd', 0) or 0
+                        total_eur = cierre.get('total_eur', 0) or 0
+                        total_cup = cierre.get('total_cup', 0) or 0
+                        total_transf = cierre.get('total_transferencia', 0) or 0
+                        
+                        print(f"Cierre #{i+1}: USD={total_usd}, EUR={total_eur}, CUP={total_cup}, Transf={total_transf}")
+                        
+                        total_usd_item = QTableWidgetItem(f"{total_usd:.2f}")
+                        total_eur_item = QTableWidgetItem(f"{total_eur:.2f}")
+                        total_cup_item = QTableWidgetItem(f"{total_cup:.2f}")
+                        total_transferencia_item = QTableWidgetItem(f"{total_transf:.2f}")
+                    except Exception as e:
+                        print(f"Error al procesar montos del cierre #{i+1}: {e}")
+                        total_usd_item = QTableWidgetItem("0.00")
+                        total_eur_item = QTableWidgetItem("0.00")
+                        total_cup_item = QTableWidgetItem("0.00")
+                        total_transferencia_item = QTableWidgetItem("0.00")
+                    
+                    # Facturas
+                                    # Facturas
+                    num_facturas_item = QTableWidgetItem(str(cierre.get('num_facturas', 0)))
+                    
+                    # Diferencias
+                    try:
+                        dif_usd = cierre.get('diferencia_usd', 0) or 0
+                        dif_eur = cierre.get('diferencia_eur', 0) or 0
+                        dif_cup = cierre.get('diferencia_cup', 0) or 0
+                        
+                        diferencia_usd_item = QTableWidgetItem(f"{dif_usd:.2f}")
+                        diferencia_eur_item = QTableWidgetItem(f"{dif_eur:.2f}")
+                        diferencia_cup_item = QTableWidgetItem(f"{dif_cup:.2f}")
+                    except Exception as e:
+                        print(f"Error al procesar diferencias del cierre #{i+1}: {e}")
+                        diferencia_usd_item = QTableWidgetItem("0.00")
+                        diferencia_eur_item = QTableWidgetItem("0.00")
+                        diferencia_cup_item = QTableWidgetItem("0.00")
+                    
+                    # Alinear números a la derecha
+                    for item in [total_usd_item, total_eur_item, total_cup_item, total_transferencia_item, 
+                                diferencia_usd_item, diferencia_eur_item, diferencia_cup_item]:
+                        item.setTextAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+                    
+                    # Colorear diferencias según si son positivas o negativas
+                    dif_usd = cierre.get('diferencia_usd', 0) or 0
+                    if dif_usd < 0:
+                        diferencia_usd_item.setForeground(QColor(255, 0, 0))  # Rojo para negativo
+                    elif dif_usd > 0:
+                        diferencia_usd_item.setForeground(QColor(0, 128, 0))  # Verde para positivo
+                        
+                    dif_eur = cierre.get('diferencia_eur', 0) or 0
+                    if dif_eur < 0:
+                        diferencia_eur_item.setForeground(QColor(255, 0, 0))
+                    elif dif_eur > 0:
+                        diferencia_eur_item.setForeground(QColor(0, 128, 0))
+                        
+                    dif_cup = cierre.get('diferencia_cup', 0) or 0
+                    if dif_cup < 0:
+                        diferencia_cup_item.setForeground(QColor(255, 0, 0))
+                    elif dif_cup > 0:
+                        diferencia_cup_item.setForeground(QColor(0, 128, 0))
+                    
+                    # Añadir items a la tabla
+                    self.cierres_table.setItem(i, 0, id_item)
+                    self.cierres_table.setItem(i, 1, fecha_item)
+                    self.cierres_table.setItem(i, 2, total_usd_item)
+                    self.cierres_table.setItem(i, 3, total_eur_item)
+                    self.cierres_table.setItem(i, 4, total_cup_item)
+                    self.cierres_table.setItem(i, 5, total_transferencia_item)
+                    self.cierres_table.setItem(i, 6, num_facturas_item)
+                    self.cierres_table.setItem(i, 7, diferencia_usd_item)
+                    self.cierres_table.setItem(i, 8, diferencia_eur_item)
+                    self.cierres_table.setItem(i, 9, diferencia_cup_item)
+            
+                except Exception as e:
+                    print(f"Error al procesar cierre #{i+1}: {e}")
+                    import traceback
+                    traceback.print_exc()
         
-        # Obtener cierres de día
-        cierres = self.cierre_service.obtener_historial_cierres(limite)
+            # Forzar actualización de la tabla después de cargar todos los datos
+            self.cierres_table.update()
+            
+            # Mostrar mensajes informativos
+            if len(cierres) > 0:
+                print(f"Se cargaron {len(cierres)} cierres en la tabla")
+                # Opcional: Mostrar mensaje en la barra de estado
+                # self.parent().statusBar().showMessage(f"Se cargaron {len(cierres)} cierres", 3000)
+            else:
+                print("No se encontraron cierres de día para mostrar")
+                # Mostrar mensaje informativo al usuario
+                QMessageBox.information(self, "Sin resultados", 
+                                    "No se encontraron cierres de día para el período seleccionado.")
         
-        # Limpiar tabla
-        self.cierres_table.setRowCount(0)
+        except Exception as e:
+            print(f"ERROR GENERAL al cargar cierres de día: {e}")
+            import traceback
+            traceback.print_exc()
+            QMessageBox.critical(self, "Error", f"Ocurrió un error al cargar los cierres de día:\n{str(e)}")
         
-        # Llenar tabla con datos
-        for i, cierre in enumerate(cierres):
-            self.cierres_table.insertRow(i)
-            
-            # Crear items para cada columna
-            id_item = QTableWidgetItem(str(cierre['id']))
-            fecha_item = QTableWidgetItem(cierre['fecha'])
-            
-            total_usd_item = QTableWidgetItem(f"{cierre['total_usd']:.2f}")
-            total_eur_item = QTableWidgetItem(f"{cierre.get('total_eur', 0):.2f}")
-            total_cup_item = QTableWidgetItem(f"{cierre['total_cup']:.2f}")
-            total_transferencia_item = QTableWidgetItem(f"{cierre.get('total_transferencia', 0):.2f}")
-            
-            num_facturas_item = QTableWidgetItem(str(cierre['num_facturas']))
-            
-            diferencia_usd_item = QTableWidgetItem(f"{cierre['diferencia_usd']:.2f}")
-            diferencia_eur_item = QTableWidgetItem(f"{cierre.get('diferencia_eur', 0):.2f}")
-            diferencia_cup_item = QTableWidgetItem(f"{cierre['diferencia_cup']:.2f}")
-            
-            # Alinear números a la derecha
-            for item in [total_usd_item, total_eur_item, total_cup_item, total_transferencia_item, 
-                        diferencia_usd_item, diferencia_eur_item, diferencia_cup_item]:
-                item.setTextAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
-            
-            # Colorear diferencias según si son positivas o negativas
-            if cierre['diferencia_usd'] < 0:
-                diferencia_usd_item.setForeground(QColor(255, 0, 0))  # Rojo para negativo
-            elif cierre['diferencia_usd'] > 0:
-                diferencia_usd_item.setForeground(QColor(0, 128, 0))  # Verde para positivo
-                
-            if cierre.get('diferencia_eur', 0) < 0:
-                diferencia_eur_item.setForeground(QColor(255, 0, 0))
-            elif cierre.get('diferencia_eur', 0) > 0:
-                diferencia_eur_item.setForeground(QColor(0, 128, 0))
-                
-            if cierre['diferencia_cup'] < 0:
-                diferencia_cup_item.setForeground(QColor(255, 0, 0))
-            elif cierre['diferencia_cup'] > 0:
-                diferencia_cup_item.setForeground(QColor(0, 128, 0))
-            
-            # Añadir items a la tabla
-            self.cierres_table.setItem(i, 0, id_item)
-            self.cierres_table.setItem(i, 1, fecha_item)
-            self.cierres_table.setItem(i, 2, total_usd_item)
-            self.cierres_table.setItem(i, 3, total_eur_item)
-            self.cierres_table.setItem(i, 4, total_cup_item)
-            self.cierres_table.setItem(i, 5, total_transferencia_item)
-            self.cierres_table.setItem(i, 6, num_facturas_item)
-            self.cierres_table.setItem(i, 7, diferencia_usd_item)
-            self.cierres_table.setItem(i, 8, diferencia_eur_item)
-            self.cierres_table.setItem(i, 9, diferencia_cup_item)
-    
     def filtrar_cierres(self):
         """Filtra la lista de cierres según el periodo seleccionado"""
         self.cargar_cierres_dia()
@@ -802,83 +941,120 @@ class ReportesTab(QWidget):
     
     def generar_reporte_salidas(self):
         """Genera un reporte de salidas según los filtros seleccionados"""
-        # Obtener fechas
-        fecha_inicio = self.salida_fecha_inicio.date().toString("yyyy-MM-dd")
-        fecha_fin = self.salida_fecha_fin.date().toString("yyyy-MM-dd")
-        
-        # Validar fechas
-        if self.salida_fecha_inicio.date() > self.salida_fecha_fin.date():
-            QMessageBox.warning(self, "Error", "La fecha de inicio debe ser anterior a la fecha final")
-            return
-        
-        # Obtener salidas filtradas
-        salidas = self.salidas_service.obtener_salidas_por_fecha(fecha_inicio, fecha_fin)
-        
-        # Aplicar filtro de destinatario
-        filtro_destinatario = self.filtro_destinatario.text().strip().lower()
-        if filtro_destinatario:
-            salidas = [s for s in salidas if filtro_destinatario in s['destinatario'].lower()]
-        
-        # Limpiar tabla
-        self.salidas_table.setRowCount(0)
-        
-        # Variables para totales
-        total_usd = 0.0
-        total_eur = 0.0
-        total_cup = 0.0
-        total_transferencia = 0.0
-        
-        # Llenar tabla con datos
-        for i, salida in enumerate(salidas):
-            self.salidas_table.insertRow(i)
+        try:
+            print("\n--- INICIANDO GENERACIÓN DE REPORTE DE SALIDAS ---")
             
-            # Crear items para cada columna
-            id_item = QTableWidgetItem(str(salida['id']))
-            fecha_item = QTableWidgetItem(str(salida['fecha']))
+            # Obtener fechas
+            fecha_inicio = self.salida_fecha_inicio.date().toString("yyyy-MM-dd")
+            fecha_fin = self.salida_fecha_fin.date().toString("yyyy-MM-dd")
+            print(f"Periodo seleccionado: {fecha_inicio} a {fecha_fin}")
             
-            monto_usd = salida.get('monto_usd', 0) or 0
-            monto_eur = salida.get('monto_eur', 0) or 0
-            monto_cup = salida.get('monto_cup', 0) or 0
-            monto_transferencia = salida.get('monto_transferencia', 0) or 0
+            # Validar fechas
+            if self.salida_fecha_inicio.date() > self.salida_fecha_fin.date():
+                QMessageBox.warning(self, "Error", "La fecha de inicio debe ser anterior a la fecha final")
+                return
             
-            usd_item = QTableWidgetItem(f"{monto_usd:.2f}")
-            eur_item = QTableWidgetItem(f"{monto_eur:.2f}")
-            cup_item = QTableWidgetItem(f"{monto_cup:.2f}")
-            transferencia_item = QTableWidgetItem(f"{monto_transferencia:.2f}")
+            # Obtener salidas filtradas
+            print("Consultando salidas en la base de datos...")
+            salidas = self.salidas_service.obtener_salidas_por_fecha(fecha_inicio, fecha_fin)
+            print(f"Se encontraron {len(salidas)} salidas en la base de datos")
             
-            destinatario_item = QTableWidgetItem(salida['destinatario'])
-            autorizado_item = QTableWidgetItem(salida['autorizado_por'])
-            motivo_item = QTableWidgetItem(salida.get('motivo', ''))
+            if not salidas:
+                print("No se encontraron salidas en este periodo")
+                # Comprobar directamente en la base de datos
+                self.salidas_service.depurar_consulta_salidas(fecha_inicio, fecha_fin)
             
-            # Alinear números a la derecha
-            for item in [usd_item, eur_item, cup_item, transferencia_item]:
-                item.setTextAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+            # Aplicar filtro de destinatario
+            filtro_destinatario = self.filtro_destinatario.text().strip().lower()
+            if filtro_destinatario:
+                print(f"Filtrando por destinatario: '{filtro_destinatario}'")
+                salidas = [s for s in salidas if filtro_destinatario in s['destinatario'].lower()]
+                print(f"Quedan {len(salidas)} salidas después del filtro de destinatario")
             
-            # Añadir items a la tabla
-                       # Añadir items a la tabla
-            self.salidas_table.setItem(i, 0, id_item)
-            self.salidas_table.setItem(i, 1, fecha_item)
-            self.salidas_table.setItem(i, 2, usd_item)
-            self.salidas_table.setItem(i, 3, eur_item)
-            self.salidas_table.setItem(i, 4, cup_item)
-            self.salidas_table.setItem(i, 5, transferencia_item)
-            self.salidas_table.setItem(i, 6, destinatario_item)
-            self.salidas_table.setItem(i, 7, autorizado_item)
-            self.salidas_table.setItem(i, 8, motivo_item)
+            # Limpiar tabla
+            print("Limpiando tabla de resultados...")
+            self.salidas_table.setRowCount(0)
             
-            # Actualizar totales
-            total_usd += monto_usd
-            total_eur += monto_eur
-            total_cup += monto_cup
-            total_transferencia += monto_transferencia
+            # Variables para totales
+            total_usd = 0.0
+            total_eur = 0.0
+            total_cup = 0.0
+            total_transferencia = 0.0
+            
+            # Llenar tabla con datos
+            print(f"Llenando tabla con {len(salidas)} salidas...")
+            for i, salida in enumerate(salidas):
+                try:
+                    self.salidas_table.insertRow(i)
+                    
+                    # Crear items para cada columna
+                    id_item = QTableWidgetItem(str(salida['id']))
+                    fecha_item = QTableWidgetItem(str(salida['fecha']))
+                    
+                    monto_usd = salida.get('monto_usd', 0) or 0
+                    monto_eur = salida.get('monto_eur', 0) or 0
+                    monto_cup = salida.get('monto_cup', 0) or 0
+                    monto_transferencia = salida.get('monto_transferencia', 0) or 0
+                    
+                    print(f"Salida #{i+1}: USD={monto_usd}, EUR={monto_eur}, CUP={monto_cup}, Transf={monto_transferencia}")
+                    
+                    usd_item = QTableWidgetItem(f"{monto_usd:.2f}")
+                    eur_item = QTableWidgetItem(f"{monto_eur:.2f}")
+                    cup_item = QTableWidgetItem(f"{monto_cup:.2f}")
+                    transferencia_item = QTableWidgetItem(f"{monto_transferencia:.2f}")
+                    
+                    destinatario_item = QTableWidgetItem(salida['destinatario'])
+                    autorizado_item = QTableWidgetItem(salida['autorizado_por'])
+                    motivo_item = QTableWidgetItem(salida.get('motivo', ''))
+                
+                # Alinear números a la derecha
+                    for item in [usd_item, eur_item, cup_item, transferencia_item]:
+                        item.setTextAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+                    
+                    # Añadir items a la tabla
+                    self.salidas_table.setItem(i, 0, id_item)
+                    self.salidas_table.setItem(i, 1, fecha_item)
+                    self.salidas_table.setItem(i, 2, usd_item)
+                    self.salidas_table.setItem(i, 3, eur_item)
+                    self.salidas_table.setItem(i, 4, cup_item)
+                    self.salidas_table.setItem(i, 5, transferencia_item)
+                    self.salidas_table.setItem(i, 6, destinatario_item)
+                    self.salidas_table.setItem(i, 7, autorizado_item)
+                    self.salidas_table.setItem(i, 8, motivo_item)
+                    
+                    # Actualizar totales
+                    total_usd += monto_usd
+                    total_eur += monto_eur
+                    total_cup += monto_cup
+                    total_transferencia += monto_transferencia
+                    
+                except Exception as e:
+                    print(f"Error al procesar salida #{i+1}: {e}")
         
-        # Actualizar etiquetas de totales
-        self.total_salidas.setText(f"Salidas: {len(salidas)}")
-        self.salidas_total_usd.setText(f"Total USD: ${total_usd:.2f}")
-        self.salidas_total_eur.setText(f"Total EUR: €{total_eur:.2f}")
-        self.salidas_total_cup.setText(f"Total CUP: ${total_cup:.2f}")
-        self.salidas_total_transf.setText(f"Total Transf.: ${total_transferencia:.2f}")
-    
+            # Actualizar etiquetas de totales
+            print("Actualizando etiquetas de totales...")
+            self.total_salidas.setText(f"Salidas: {len(salidas)}")
+            self.salidas_total_usd.setText(f"Total USD: ${total_usd:.2f}")
+            self.salidas_total_eur.setText(f"Total EUR: €{total_eur:.2f}")
+            self.salidas_total_cup.setText(f"Total CUP: ${total_cup:.2f}")
+            self.salidas_total_transf.setText(f"Total Transf.: ${total_transferencia:.2f}")
+            
+            # Forzar actualización de la interfaz
+            self.salidas_table.update()
+            
+            print(f"Reporte de salidas generado exitosamente: {len(salidas)} salidas mostradas.")
+            
+            # Si no hay resultados, mostrar mensaje
+            if len(salidas) == 0:
+                QMessageBox.information(self, "Sin resultados", 
+                                    "No se encontraron salidas que coincidan con los filtros seleccionados.")
+        
+        except Exception as e:
+            print(f"ERROR GENERAL al generar reporte de salidas: {e}")
+            import traceback
+            traceback.print_exc()
+            QMessageBox.critical(self, "Error", f"Ocurrió un error al generar el reporte de salidas:\n{str(e)}")
+        
     def exportar_salidas_csv(self):
         """Exporta el reporte de salidas a un archivo CSV"""
         # Verificar si hay datos para exportar
@@ -940,80 +1116,157 @@ class ReportesTab(QWidget):
     
     def generar_consolidado(self):
         """Genera un reporte consolidado para el período seleccionado"""
-        # Obtener fechas
-        fecha_inicio = self.consolidado_fecha_inicio.date().toString("yyyy-MM-dd")
-        fecha_fin = self.consolidado_fecha_fin.date().toString("yyyy-MM-dd")
-        
-        # Validar fechas
-        if self.consolidado_fecha_inicio.date() > self.consolidado_fecha_fin.date():
-            QMessageBox.warning(self, "Error", "La fecha de inicio debe ser anterior a la fecha final")
-            return
-        
-        # Obtener facturas y salidas para el período
-        facturas = self.facturacion_service.obtener_facturas_por_fecha(fecha_inicio, fecha_fin)
-        salidas = self.salidas_service.obtener_salidas_por_fecha(fecha_inicio, fecha_fin)
-        
-        # Variables para totales generales
-        total_facturas = len(facturas)
-        total_facturado_usd = sum(f.monto_equivalente for f in facturas)
-        total_facturado_eur = sum(getattr(f, 'pago_eur', 0) or 0 for f in facturas)
-        total_facturado_cup = sum(getattr(f, 'pago_cup', 0) or 0 for f in facturas)
-        total_facturado_transf = sum(getattr(f, 'pago_transferencia', 0) or 0 for f in facturas)
-        
-        total_salidas = len(salidas)
-        total_salidas_usd = sum(s.get('monto_usd', 0) or 0 for s in salidas)
-        total_salidas_eur = sum(s.get('monto_eur', 0) or 0 for s in salidas)
-        total_salidas_cup = sum(s.get('monto_cup', 0) or 0 for s in salidas)
-        total_salidas_transf = sum(s.get('monto_transferencia', 0) or 0 for s in salidas)
+        try:
+            print("\n--- INICIANDO GENERACIÓN DE REPORTE CONSOLIDADO ---")
+            
+            # Obtener fechas
+            fecha_inicio = self.consolidado_fecha_inicio.date().toString("yyyy-MM-dd")
+            fecha_fin = self.consolidado_fecha_fin.date().toString("yyyy-MM-dd")
+            print(f"Periodo seleccionado: {fecha_inicio} a {fecha_fin}")
+            
+            # Validar fechas
+            if self.consolidado_fecha_inicio.date() > self.consolidado_fecha_fin.date():
+                QMessageBox.warning(self, "Error", "La fecha de inicio debe ser anterior a la fecha final")
+                return
+            
+            # Obtener facturas y salidas para el período
+            print("Consultando facturas...")
+            facturas = self.facturacion_service.obtener_facturas_por_fecha(fecha_inicio, fecha_fin)
+            print(f"Se encontraron {len(facturas)} facturas")
+            
+            print("Consultando salidas...")
+            salidas = self.salidas_service.obtener_salidas_por_fecha(fecha_inicio, fecha_fin)
+            print(f"Se encontraron {len(salidas)} salidas")
+            
+            # Variables para totales generales
+            total_facturas = len(facturas)
+            
+            # Calcular totales con manejo de errores
+            try:
+                total_facturado_usd = sum(getattr(f, 'monto_equivalente', 0) or 0 for f in facturas)
+                total_facturado_eur = sum(getattr(f, 'pago_eur', 0) or 0 for f in facturas)
+                total_facturado_cup = sum(getattr(f, 'pago_cup', 0) or 0 for f in facturas)
+                total_facturado_transf = sum(getattr(f, 'pago_transferencia', 0) or 0 for f in facturas)
+                
+                print(f"Total facturado - USD: {total_facturado_usd}, EUR: {total_facturado_eur}, " +
+                    f"CUP: {total_facturado_cup}, Transf: {total_facturado_transf}")
+            except Exception as e:
+                print(f"Error al calcular totales de facturas: {e}")
+                total_facturado_usd = 0
+                total_facturado_eur = 0
+                total_facturado_cup = 0
+                total_facturado_transf = 0
+            
+            # Calcular totales de salidas con manejo de errores
+            try:
+                total_salidas = len(salidas)
+                total_salidas_usd = sum(s.get('monto_usd', 0) or 0 for s in salidas)
+                total_salidas_eur = sum(s.get('monto_eur', 0) or 0 for s in salidas)
+                total_salidas_cup = sum(s.get('monto_cup', 0) or 0 for s in salidas)
+                total_salidas_transf = sum(s.get('monto_transferencia', 0) or 0 for s in salidas)
+                
+                print(f"Total salidas - USD: {total_salidas_usd}, EUR: {total_salidas_eur}, " +
+                    f"CUP: {total_salidas_cup}, Transf: {total_salidas_transf}")
+            except Exception as e:
+                print(f"Error al calcular totales de salidas: {e}")
+                total_salidas = 0
+                total_salidas_usd = 0
+                total_salidas_eur = 0
+                total_salidas_cup = 0
+                total_salidas_transf = 0
         
         # Calcular balances finales
-        balance_usd = sum(getattr(f, 'pago_usd', 0) or 0 for f in facturas) - total_salidas_usd
-        balance_eur = total_facturado_eur - total_salidas_eur
-        balance_cup = total_facturado_cup - total_salidas_cup
-        balance_transf = total_facturado_transf - total_salidas_transf
-        
-        # Actualizar etiquetas del panel de facturas
-        self.consolidado_num_facturas.setText(f"Facturas: {total_facturas}")
-        self.consolidado_total_facturado.setText(f"Total Facturado (USD): ${total_facturado_usd:.2f}")
-        
-        promedio_factura = total_facturado_usd / total_facturas if total_facturas > 0 else 0
-        self.consolidado_promedio_factura.setText(f"Promedio por Factura: ${promedio_factura:.2f}")
-        
-        # Actualizar etiquetas del panel de salidas
-        self.consolidado_num_salidas.setText(f"Salidas: {total_salidas}")
-        
-        # Convertir salidas a USD (aproximación)
-        tasa_actual = self.facturacion_service.obtener_tasa_cambio()
-        total_salidas_usd_equiv = total_salidas_usd + (total_salidas_eur * 1.1) + (total_salidas_cup / tasa_actual)
-        
-        self.consolidado_total_salidas.setText(f"Total Salidas (USD): ${total_salidas_usd_equiv:.2f}")
-        
-        promedio_salida = total_salidas_usd_equiv / total_salidas if total_salidas > 0 else 0
-        self.consolidado_promedio_salida.setText(f"Promedio por Salida: ${promedio_salida:.2f}")
-        
-        # Actualizar etiquetas del panel de balance
-        self.consolidado_balance_usd.setText(f"Balance USD: ${balance_usd:.2f}")
-        self.consolidado_balance_eur.setText(f"Balance EUR: €{balance_eur:.2f}")
-        self.consolidado_balance_cup.setText(f"Balance CUP: ${balance_cup:.2f}")
-        self.consolidado_balance_transf.setText(f"Balance Transferencia: ${balance_transf:.2f}")
-        
-        # Colorear balances según si son positivos o negativos
-        for label, valor in [
-            (self.consolidado_balance_usd, balance_usd),
-            (self.consolidado_balance_eur, balance_eur),
-            (self.consolidado_balance_cup, balance_cup),
-            (self.consolidado_balance_transf, balance_transf)
-        ]:
-            if valor < 0:
-                label.setStyleSheet("color: red;")
-            elif valor > 0:
-                label.setStyleSheet("color: green;")
-            else:
-                label.setStyleSheet("color: black;")
-        
-        # Generar resumen por día
-        self.generar_resumen_por_dia(fecha_inicio, fecha_fin, facturas, salidas)
-    
+            try:
+                balance_usd = sum(getattr(f, 'pago_usd', 0) or 0 for f in facturas) - total_salidas_usd
+                balance_eur = total_facturado_eur - total_salidas_eur
+                balance_cup = total_facturado_cup - total_salidas_cup
+                balance_transf = total_facturado_transf - total_salidas_transf
+                
+                print(f"Balance - USD: {balance_usd}, EUR: {balance_eur}, " +
+                    f"CUP: {balance_cup}, Transf: {balance_transf}")
+            except Exception as e:
+                print(f"Error al calcular balances: {e}")
+                balance_usd = 0
+                balance_eur = 0
+                balance_cup = 0
+                balance_transf = 0
+            
+            # Actualizar etiquetas del panel de facturas
+            print("Actualizando etiquetas de facturas...")
+            self.consolidado_num_facturas.setText(f"Facturas: {total_facturas}")
+            self.consolidado_total_facturado.setText(f"Total Facturado (USD): ${total_facturado_usd:.2f}")
+            
+            promedio_factura = total_facturado_usd / total_facturas if total_facturas > 0 else 0
+            self.consolidado_promedio_factura.setText(f"Promedio por Factura: ${promedio_factura:.2f}")
+            
+            # Actualizar etiquetas del panel de salidas
+            print("Actualizando etiquetas de salidas...")
+            self.consolidado_num_salidas.setText(f"Salidas: {total_salidas}")
+            
+            # Convertir salidas a USD (aproximación)
+            try:
+                tasa_actual = self.facturacion_service.obtener_tasa_cambio()
+                print(f"Tasa de cambio actual: {tasa_actual}")
+                
+                if tasa_actual > 0:
+                    total_salidas_usd_equiv = total_salidas_usd + (total_salidas_eur * 1.1) + (total_salidas_cup / tasa_actual)
+                else:
+                    print("Advertencia: Tasa de cambio es cero o negativa. Usando solo USD para el total.")
+                    total_salidas_usd_equiv = total_salidas_usd
+            except Exception as e:
+                print("ener tasa de cambio: {e}. Usando solo USD para el total.")
+                total_salidas_usd_equiv = total_salidas_usd
+            
+                self.consolidado_total_salidas.setText(f"Total Salidas (USD): ${total_salidas_usd_equiv:.2f}")
+                
+                promedio_salida = total_salidas_usd_equiv / total_salidas if total_salidas > 0 else 0
+                self.consolidado_promedio_salida.setText(f"Promedio por Salida: ${promedio_salida:.2f}")
+                
+                # Actualizar etiquetas del panel de balance
+                print("Actualizando etiquetas de balance...")
+                self.consolidado_balance_usd.setText(f"Balance USD: ${balance_usd:.2f}")
+                self.consolidado_balance_eur.setText(f"Balance EUR: €{balance_eur:.2f}")
+                self.consolidado_balance_cup.setText(f"Balance CUP: ${balance_cup:.2f}")
+                self.consolidado_balance_transf.setText(f"Balance Transferencia: ${balance_transf:.2f}")
+                
+                # Colorear balances según si son positivos o negativos
+                        # Colorear balances según si son positivos o negativos
+                for label, valor in [
+                    (self.consolidado_balance_usd, balance_usd),
+                    (self.consolidado_balance_eur, balance_eur),
+                    (self.consolidado_balance_cup, balance_cup),
+                    (self.consolidado_balance_transf, balance_transf)
+                ]:
+                    if valor < 0:
+                        label.setStyleSheet("color: red;")
+                    elif valor > 0:
+                        label.setStyleSheet("color: green;")
+                    else:
+                        label.setStyleSheet("color: black;")
+                
+                # Generar resumen por día
+                print("Generando resumen por día...")
+                self.generar_resumen_por_dia(fecha_inicio, fecha_fin, facturas, salidas)
+                
+                # Forzar actualización de la interfaz
+                self.consolidado_dias_table.update()
+                
+                # Mostrar resumen
+                print(f"Reporte consolidado generado exitosamente para el período {fecha_inicio} a {fecha_fin}")
+                print(f"- Facturas: {total_facturas}, Total facturado: {total_facturado_usd:.2f} USD")
+                print(f"- Salidas: {total_salidas}, Total salidas: {total_salidas_usd_equiv:.2f} USD")
+                
+                # Si no hay datos, mostrar un mensaje al usuario
+                if total_facturas == 0 and total_salidas == 0:
+                    QMessageBox.information(self, "Sin datos", 
+                                        "No se encontraron facturas ni salidas para el período seleccionado.")
+                    
+        except Exception as e:
+                print(f"ERROR GENERAL al generar reporte consolidado: {e}")
+                import traceback
+                traceback.print_exc()
+                QMessageBox.critical(self, "Error", f"Ocurrió un error al generar el reporte consolidado:\n{str(e)}")
+            
     def generar_resumen_por_dia(self, fecha_inicio, fecha_fin, facturas, salidas):
         """Genera el resumen por día para el consolidado"""
         # Crear diccionarios para agrupar por fecha
