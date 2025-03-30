@@ -805,3 +805,116 @@ class FacturacionService:
             if self.db.connection:
                 self.db.disconnect()
             return []
+        
+    def obtener_estadisticas_facturas_por_fecha(self, fecha_inicio: str, fecha_fin: str) -> Dict:
+        """
+        Obtiene estadísticas de facturas en un rango de fechas
+        
+        Args:
+            fecha_inicio: Fecha de inicio en formato 'YYYY-MM-DD'
+            fecha_fin: Fecha de fin en formato 'YYYY-MM-DD'
+            
+        Returns:
+            Diccionario con estadísticas: cantidad de facturas, total facturado y promedio
+        """
+        try:
+            # Ajustar fecha_fin para incluir todo el día
+            fecha_fin_ajustada = f"{fecha_fin} 23:59:59"
+            
+            self.db.connect()
+            
+            # Consulta para obtener estadísticas por moneda
+            query = """
+            SELECT 
+                COUNT(*) as cantidad,
+                SUM(monto) as total,
+                AVG(monto) as promedio,
+                moneda
+            FROM facturas 
+            WHERE fecha BETWEEN ? AND ?
+            GROUP BY moneda
+            """
+            
+            resultado = self.db.fetch_all(query, (fecha_inicio, fecha_fin_ajustada))
+            self.db.disconnect()
+            
+            print(f"Consultando estadísticas de facturas entre {fecha_inicio} y {fecha_fin_ajustada}")
+            print(f"Resultados encontrados: {len(resultado) if resultado else 0}")
+            
+            # Inicializar estadísticas
+            estadisticas = {
+                "cantidad_total": 0,
+                "total_usd": 0.0,
+                "total_eur": 0.0,
+                "total_cup": 0.0,
+                "promedio_usd": 0.0,
+                "promedio_eur": 0.0,
+                "promedio_cup": 0.0,
+                "cantidad_usd": 0,
+                "cantidad_eur": 0,
+                "cantidad_cup": 0
+            }
+            
+            if resultado:
+                for row in resultado:
+                    cantidad = row[0] or 0
+                    total = row[1] or 0.0
+                    promedio = row[2] or 0.0
+                    moneda = row[3]
+                    
+                    estadisticas["cantidad_total"] += cantidad
+                    
+                    if moneda == "USD":
+                        estadisticas["total_usd"] = total
+                        estadisticas["promedio_usd"] = promedio
+                        estadisticas["cantidad_usd"] = cantidad
+                    elif moneda == "EUR":
+                        estadisticas["total_eur"] = total
+                        estadisticas["promedio_eur"] = promedio
+                        estadisticas["cantidad_eur"] = cantidad
+                    elif moneda == "CUP":
+                        estadisticas["total_cup"] = total
+                        estadisticas["promedio_cup"] = promedio
+                        estadisticas["cantidad_cup"] = cantidad
+            
+            # Calcular total equivalente en USD
+            tasas = self.exchange_service.obtener_tasas_actuales()
+            tasa_usd = tasas['usd']
+            tasa_eur = tasas['eur']
+            
+            total_equivalente_usd = (
+                estadisticas["total_usd"] + 
+                (estadisticas["total_eur"] * tasa_eur / tasa_usd) + 
+                (estadisticas["total_cup"] / tasa_usd)
+            )
+            
+            estadisticas["total_equivalente_usd"] = total_equivalente_usd
+            
+            # Calcular promedio general
+            if estadisticas["cantidad_total"] > 0:
+                estadisticas["promedio_general_usd"] = total_equivalente_usd / estadisticas["cantidad_total"]
+            else:
+                estadisticas["promedio_general_usd"] = 0.0
+                
+            return estadisticas
+            
+        except Exception as e:
+            print(f"Error al obtener estadísticas de facturas por fecha: {e}")
+            import traceback
+            traceback.print_exc()
+            if self.db.connection:
+                self.db.disconnect()
+            return {
+                "cantidad_total": 0,
+                "total_usd": 0.0,
+                "total_eur": 0.0,
+                "total_cup": 0.0,
+                "promedio_usd": 0.0,
+                "promedio_eur": 0.0,
+                "promedio_cup": 0.0,
+                "cantidad_usd": 0,
+                "cantidad_eur": 0,
+                "cantidad_cup": 0,
+                "total_equivalente_usd": 0.0,
+                "promedio_general_usd": 0.0
+            }

@@ -505,9 +505,15 @@ class ReportesTab(QWidget):
         self.consolidado_total_facturado = QLabel("Total Facturado (USD): $0.00")
         self.consolidado_promedio_factura = QLabel("Promedio por Factura: $0.00")
         
+        # Añadir etiqueta para desglose detallado de facturas por moneda
+        self.consolidado_facturas_detalle = QLabel("")
+        self.consolidado_facturas_detalle.setStyleSheet("font-size: 11px; color: #666;")
+        self.consolidado_facturas_detalle.setWordWrap(True)
+        
         facturas_layout.addWidget(self.consolidado_num_facturas)
         facturas_layout.addWidget(self.consolidado_total_facturado)
         facturas_layout.addWidget(self.consolidado_promedio_factura)
+        facturas_layout.addWidget(self.consolidado_facturas_detalle)
         facturas_layout.addStretch()
         
         facturas_group.setLayout(facturas_layout)
@@ -565,7 +571,7 @@ class ReportesTab(QWidget):
         resumen_dias_group.setLayout(resumen_dias_layout)
         
         layout.addWidget(resumen_dias_group)
-    
+        
     def cargar_datos_iniciales(self):
         """Carga los datos iniciales para todas las pestañas"""
         # Generar reporte de facturas inicial
@@ -1373,6 +1379,9 @@ class ReportesTab(QWidget):
                 QMessageBox.warning(self, "Error", "La fecha de inicio debe ser anterior a la fecha final")
                 return
             
+            # Obtener estadísticas detalladas de facturas para totales y promedios
+            estadisticas = self.facturacion_service.obtener_estadisticas_facturas_por_fecha(fecha_inicio, fecha_fin)
+            
             # Obtener facturas y salidas para el período
             print("Consultando facturas...")
             facturas = self.facturacion_service.obtener_facturas_por_fecha(fecha_inicio, fecha_fin)
@@ -1383,24 +1392,17 @@ class ReportesTab(QWidget):
             print(f"Se encontraron {len(salidas)} salidas")
             
             # Variables para totales generales
-            total_facturas = len(facturas)
+            total_facturas = estadisticas["cantidad_total"]
             total_salidas = len(salidas)
             
-            # Calcular totales de facturas
-            try:
-                total_facturado_usd = sum(getattr(f, 'pago_usd', 0) or 0 for f in facturas)
-                total_facturado_eur = sum(getattr(f, 'pago_eur', 0) or 0 for f in facturas)
-                total_facturado_cup = sum(getattr(f, 'pago_cup', 0) or 0 for f in facturas)
-                total_facturado_transf = sum(getattr(f, 'pago_transferencia', 0) or 0 for f in facturas)
-                
-                print(f"Total facturado - USD: {total_facturado_usd}, EUR: {total_facturado_eur}, " +
-                    f"CUP: {total_facturado_cup}, Transf: {total_facturado_transf}")
-            except Exception as e:
-                print(f"Error al calcular totales de facturas: {e}")
-                total_facturado_usd = 0
-                total_facturado_eur = 0
-                total_facturado_cup = 0
-                total_facturado_transf = 0
+            # Calcular totales de pagos recibidos (por forma de pago)
+            pagos_recibidos_usd = sum(getattr(f, 'pago_usd', 0) or 0 for f in facturas)
+            pagos_recibidos_eur = sum(getattr(f, 'pago_eur', 0) or 0 for f in facturas)
+            pagos_recibidos_cup = sum(getattr(f, 'pago_cup', 0) or 0 for f in facturas)
+            pagos_recibidos_transf = sum(getattr(f, 'pago_transferencia', 0) or 0 for f in facturas)
+            
+            print(f"Pagos recibidos - USD: {pagos_recibidos_usd}, EUR: {pagos_recibidos_eur}, " +
+                f"CUP: {pagos_recibidos_cup}, Transf: {pagos_recibidos_transf}")
             
             # Calcular totales de salidas
             try:
@@ -1418,12 +1420,12 @@ class ReportesTab(QWidget):
                 total_salidas_cup = 0
                 total_salidas_transf = 0
             
-            # Calcular balances finales
+            # Calcular balances finales basados en formas de pago
             try:
-                balance_usd = total_facturado_usd - total_salidas_usd
-                balance_eur = total_facturado_eur - total_salidas_eur
-                balance_cup = total_facturado_cup - total_salidas_cup
-                balance_transf = total_facturado_transf - total_salidas_transf
+                balance_usd = pagos_recibidos_usd - total_salidas_usd
+                balance_eur = pagos_recibidos_eur - total_salidas_eur
+                balance_cup = pagos_recibidos_cup - total_salidas_cup
+                balance_transf = pagos_recibidos_transf - total_salidas_transf
                 
                 print(f"Balance - USD: {balance_usd}, EUR: {balance_eur}, " +
                     f"CUP: {balance_cup}, Transf: {balance_transf}")
@@ -1434,13 +1436,26 @@ class ReportesTab(QWidget):
                 balance_cup = 0
                 balance_transf = 0
             
-            # Actualizar etiquetas del panel de facturas
+            # Actualizar etiquetas del panel de facturas con estadísticas
             print("Actualizando etiquetas de facturas...")
             self.consolidado_num_facturas.setText(f"Facturas: {total_facturas}")
-            self.consolidado_total_facturado.setText(f"Total Facturado (USD): ${total_facturado_usd:.2f}")
             
-            promedio_factura = total_facturado_usd / total_facturas if total_facturas > 0 else 0
-            self.consolidado_promedio_factura.setText(f"Promedio por Factura: ${promedio_factura:.2f}")
+            # Usar el total equivalente en USD de las estadísticas
+            self.consolidado_total_facturado.setText(f"Total Facturado (USD): ${estadisticas['total_equivalente_usd']:.2f}")
+            
+            # Usar el promedio general en USD de las estadísticas
+            self.consolidado_promedio_factura.setText(f"Promedio por Factura: ${estadisticas['promedio_general_usd']:.2f}")
+            
+            # Actualizar desglose de facturas por moneda
+            desglose = ""
+            if estadisticas["cantidad_usd"] > 0:
+                desglose += f"USD: {estadisticas['cantidad_usd']} fact, Total: ${estadisticas['total_usd']:.2f}, Prom: ${estadisticas['promedio_usd']:.2f}\n"
+            if estadisticas["cantidad_eur"] > 0:
+                desglose += f"EUR: {estadisticas['cantidad_eur']} fact, Total: €{estadisticas['total_eur']:.2f}, Prom: €{estadisticas['promedio_eur']:.2f}\n"
+            if estadisticas["cantidad_cup"] > 0:
+                desglose += f"CUP: {estadisticas['cantidad_cup']} fact, Total: ${estadisticas['total_cup']:.2f}, Prom: ${estadisticas['promedio_cup']:.2f}"
+            
+            self.consolidado_facturas_detalle.setText(desglose)
             
             # Actualizar etiquetas del panel de salidas
             print("Actualizando etiquetas de salidas...")
@@ -1468,7 +1483,7 @@ class ReportesTab(QWidget):
                 promedio_salida = total_salidas_usd / total_salidas if total_salidas > 0 else 0
                 self.consolidado_promedio_salida.setText(f"Promedio por Salida: ${promedio_salida:.2f}")
             
-            # Actualizar etiquetas del panel de balance
+            # Actualizar etiquetas de balance según los pagos recibidos vs. salidas
             print("Actualizando etiquetas de balance...")
             self.consolidado_balance_usd.setText(f"Balance USD: ${balance_usd:.2f}")
             self.consolidado_balance_eur.setText(f"Balance EUR: €{balance_eur:.2f}")
@@ -1498,8 +1513,10 @@ class ReportesTab(QWidget):
             
             # Mostrar resumen
             print(f"Reporte consolidado generado exitosamente para el período {fecha_inicio} a {fecha_fin}")
-            print(f"- Facturas: {total_facturas}, Total facturado: {total_facturado_usd:.2f} USD")
-            print(f"- Salidas: {total_salidas}, Total salidas: {total_salidas_usd_equiv:.2f} USD")
+            print(f"- Facturas: {total_facturas}, Total facturado: {estadisticas['total_equivalente_usd']:.2f} USD, Promedio: {estadisticas['promedio_general_usd']:.2f} USD")
+            print(f"- Pagos recibidos: USD ${pagos_recibidos_usd:.2f}, EUR €{pagos_recibidos_eur:.2f}, CUP ${pagos_recibidos_cup:.2f}, Transf ${pagos_recibidos_transf:.2f}")
+            print(f"- Salidas: {total_salidas}, Total salidas: USD ${total_salidas_usd:.2f}, EUR €{total_salidas_eur:.2f}, CUP ${total_salidas_cup:.2f}, Transf ${total_salidas_transf:.2f}")
+            print(f"- Balance: USD ${balance_usd:.2f}, EUR €{balance_eur:.2f}, CUP ${balance_cup:.2f}, Transf ${balance_transf:.2f}")
             
             # Si no hay datos, mostrar un mensaje al usuario
             if total_facturas == 0 and total_salidas == 0:
@@ -1510,8 +1527,8 @@ class ReportesTab(QWidget):
             print(f"ERROR GENERAL al generar reporte consolidado: {e}")
             import traceback
             traceback.print_exc()
-            QMessageBox.critical(self, "Error", f"Ocurrió un error al generar el reporte consolidado:\n{str(e)}")    
-            
+            QMessageBox.critical(self, "Error", f"Ocurrió un error al generar el reporte consolidado:\n{str(e)}")   
+        
     def generar_resumen_por_dia(self, fecha_inicio, fecha_fin, facturas, salidas):
         """Genera el resumen por día para el consolidado"""
         # Crear diccionarios para agrupar por fecha
