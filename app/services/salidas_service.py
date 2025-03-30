@@ -193,13 +193,15 @@ class SalidasService:
                 self.db.disconnect()
             return []
     
-    def obtener_salidas_por_fecha(self, fecha_inicio: str, fecha_fin: str) -> List[Dict]:
+    def obtener_salidas_por_fecha(self, fecha_inicio: str, fecha_fin: str, destinatario=None, autorizado_por=None):
         """
-        Obtiene las salidas en un rango de fechas
+        Obtiene las salidas en un rango de fechas con filtros opcionales
         
         Args:
             fecha_inicio: Fecha de inicio en formato 'YYYY-MM-DD'
             fecha_fin: Fecha de fin en formato 'YYYY-MM-DD'
+            destinatario: Opcional - Filtrar por destinatario
+            autorizado_por: Opcional - Filtrar por quien autorizó
             
         Returns:
             Lista de salidas de caja
@@ -208,35 +210,61 @@ class SalidasService:
             # Ajustar fecha_fin para incluir todo el día
             fecha_fin_ajustada = f"{fecha_fin} 23:59:59"
             
+            # Construir query base
+            query = """
+            SELECT id, fecha, monto_usd, monto_eur, monto_cup, monto_transferencia, 
+                destinatario, autorizado_por, motivo
+            FROM salidas_caja 
+            WHERE fecha BETWEEN ? AND ?
+            """
+            
+            params = [fecha_inicio, fecha_fin_ajustada]
+            
+            # Agregar filtros adicionales si se proporcionan
+            if destinatario:
+                query += " AND destinatario LIKE ?"
+                params.append(f"%{destinatario}%")
+            
+            if autorizado_por:
+                query += " AND autorizado_por LIKE ?"
+                params.append(f"%{autorizado_por}%")
+            
+            # Finalizar query con orden
+            query += " ORDER BY fecha DESC"
+            
+            print(f"Query salidas: {query}")
+            print(f"Params: {params}")
+            
             self.db.connect()
-            resultado = self.db.fetch_all(
-                "SELECT id, fecha, monto_usd, monto_eur, monto_cup, monto_transferencia, "
-                "destinatario, autorizado_por, motivo FROM salidas_caja "
-                "WHERE fecha BETWEEN ? AND ? "
-                "ORDER BY fecha",
-                (fecha_inicio, fecha_fin_ajustada)
-            )
+            cursor = self.db.connection.cursor()
+            cursor.execute(query, params)
+            resultado = cursor.fetchall()
             self.db.disconnect()
+            
+            print(f"Resultados encontrados: {len(resultado)}")
             
             salidas = []
             for row in resultado:
-                salidas.append({
+                salida = {
                     'id': row[0],
                     'fecha': row[1],
-                    'monto_usd': row[2],
-                    'monto_eur': row[3],
-                    'monto_cup': row[4],
-                    'monto_transferencia': row[5],
-                    'destinatario': row[6],
-                    'autorizado_por': row[7],
-                    'motivo': row[8]
-                })
+                    'monto_usd': row[2] or 0,
+                    'monto_eur': row[3] or 0,
+                    'monto_cup': row[4] or 0,
+                    'monto_transferencia': row[5] or 0,
+                    'destinatario': row[6] or '',
+                    'autorizado_por': row[7] or '',
+                    'motivo': row[8] or ''
+                }
+                salidas.append(salida)
                     
             return salidas
                 
         except Exception as e:
             print(f"Error al obtener salidas por fecha: {e}")
-            if self.db.connection:
+            import traceback
+            traceback.print_exc()
+            if hasattr(self, 'db') and hasattr(self.db, 'connection') and self.db.connection:
                 self.db.disconnect()
             return []
     

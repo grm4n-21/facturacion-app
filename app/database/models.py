@@ -40,6 +40,7 @@ class Factura:
     moneda: str  # "USD", "EUR" o "CUP"
     monto_equivalente: float  # Siempre en USD para facilitar reportes
     fecha: datetime
+    mensajero: str = "No especificado"  # Parámetro con valor por defecto
     pago_usd: float = 0.0
     pago_eur: float = 0.0
     pago_cup: float = 0.0
@@ -60,16 +61,29 @@ class Factura:
         Returns:
             Instancia de Factura
         """
+        # Asegurarse de que la fecha se procese correctamente
+        fecha_str = row[5]
+        try:
+            if "Z" in fecha_str:
+                fecha = datetime.fromisoformat(fecha_str.replace("Z", "+00:00"))
+            elif "T" in fecha_str:
+                fecha = datetime.fromisoformat(fecha_str)
+            else:
+                fecha = datetime.strptime(fecha_str, "%Y-%m-%d %H:%M:%S")
+        except Exception as e:
+            print(f"Error al procesar fecha '{fecha_str}': {e}")
+            fecha = datetime.now()
+        
+        # Crear instancia con valores básicos y mensajero por defecto
         return cls(
             id=row[0],
             orden_id=row[1],
             monto=row[2],
             moneda=row[3],
             monto_equivalente=row[4],
-            fecha=datetime.fromisoformat(row[5].replace("Z", "+00:00"))
-            if "Z" in row[5] else datetime.fromisoformat(row[5])
+            fecha=fecha,
+            # El mensajero se establece automáticamente con el valor por defecto
         )
-    
 @dataclass
 class SalidaCaja:
     """Representa una salida de dinero de la caja"""

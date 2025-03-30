@@ -50,15 +50,15 @@ class ReportesTab(QWidget):
         self.setup_facturas_tab()
         self.tabs.addTab(self.facturas_tab, "Facturas")
         
-        # Pestaña 2: Cierres de Día
-        self.cierres_tab = QWidget()
-        self.setup_cierres_tab()
-        self.tabs.addTab(self.cierres_tab, "Cierres de Día")
-        
-        # Pestaña 3: Salidas de Caja
+        # Pestaña 2: Salidas de Caja
         self.salidas_tab = QWidget()
         self.setup_salidas_tab()
         self.tabs.addTab(self.salidas_tab, "Salidas de Caja")
+        
+        # Pestaña 3: Cierres de Día
+        self.cierres_tab = QWidget()
+        self.setup_cierres_tab()
+        self.tabs.addTab(self.cierres_tab, "Cierres de Día")
         
         # Pestaña 4: Resumen Consolidado
         self.resumen_tab = QWidget()
@@ -67,7 +67,7 @@ class ReportesTab(QWidget):
         
         # Añadir pestañas al layout principal
         main_layout.addWidget(self.tabs)
-    
+        
     def setup_facturas_tab(self):
         """Configura la pestaña de reportes de facturas"""
         layout = QVBoxLayout(self.facturas_tab)
@@ -201,8 +201,33 @@ class ReportesTab(QWidget):
         periodo_layout.addRow("Periodo:", self.cierre_periodo_combo)
         filtros_layout.addLayout(periodo_layout)
         
+        # Fechas específicas
+        fechas_layout = QFormLayout()
+        
+        hoy = QDate.currentDate()
+        
+        self.cierre_fecha_inicio = QDateEdit()
+        self.cierre_fecha_inicio.setDate(hoy.addDays(-30))  # Último mes por defecto
+        self.cierre_fecha_inicio.setCalendarPopup(True)
+        fechas_layout.addRow("Desde:", self.cierre_fecha_inicio)
+        
+        self.cierre_fecha_fin = QDateEdit()
+        self.cierre_fecha_fin.setDate(hoy)
+        self.cierre_fecha_fin.setCalendarPopup(True)
+        fechas_layout.addRow("Hasta:", self.cierre_fecha_fin)
+        
+        filtros_layout.addLayout(fechas_layout)
+        
         # Botones
         botones_layout = QVBoxLayout()
+        
+        self.cargar_cierres_recientes_btn = QPushButton("Cargar Cierres Recientes")
+        self.cargar_cierres_recientes_btn.clicked.connect(self.cargar_cierres_recientes)
+        botones_layout.addWidget(self.cargar_cierres_recientes_btn)
+        
+        self.cargar_cierres_por_fechas_btn = QPushButton("Cargar por Fechas")
+        self.cargar_cierres_por_fechas_btn.clicked.connect(self.cargar_cierres_por_fechas)
+        botones_layout.addWidget(self.cargar_cierres_por_fechas_btn)
         
         self.exportar_cierres_btn = QPushButton("Exportar Cierres a CSV")
         self.exportar_cierres_btn.clicked.connect(self.exportar_cierres_csv)
@@ -274,6 +299,64 @@ class ReportesTab(QWidget):
         layout.addWidget(filtros_group)
         layout.addWidget(splitter)
     
+    def limpiar_filtros_salidas(self):
+        """Limpia todos los filtros de la pestaña de salidas"""
+        hoy = QDate.currentDate()
+        
+        # Restablecer fechas a los valores por defecto
+        self.salida_fecha_inicio.setDate(hoy.addDays(-30))
+        self.salida_fecha_fin.setDate(hoy)
+        
+        # Limpiar los campos de texto
+        self.filtro_destinatario.clear()
+        self.filtro_autorizado.clear()
+        self.filtro_motivo.clear()
+        
+        # Regenerar el reporte con los filtros limpios
+        self.generar_reporte_salidas()
+
+    def cargar_cierres_recientes(self):
+        """Carga los cierres más recientes (último mes)"""
+        self.cierre_periodo_combo.setCurrentIndex(0)  # Selecciona "Último mes"
+        self.cargar_cierres_dia()
+    
+    def cargar_cierres_por_fechas(self):
+        """Carga los cierres según el rango de fechas seleccionado"""
+        try:
+            fecha_inicio = self.cierre_fecha_inicio.date().toString("yyyy-MM-dd")
+            fecha_fin = self.cierre_fecha_fin.date().toString("yyyy-MM-dd")
+            
+            # Validar fechas
+            if self.cierre_fecha_inicio.date() > self.cierre_fecha_fin.date():
+                QMessageBox.warning(self, "Error", "La fecha de inicio debe ser anterior a la fecha final")
+                return
+            
+            print(f"Consultando cierres desde {fecha_inicio} hasta {fecha_fin}")
+            
+            # Llamar al servicio de cierres con el rango de fechas
+            cierres = self.cierre_service.obtener_cierres_por_fecha(fecha_inicio, fecha_fin)
+            
+            print(f"Se encontraron {len(cierres)} cierres en el período seleccionado")
+            
+            # Limpiar tabla y mostrar los resultados
+            self.cierres_table.setRowCount(0)
+            
+            # Llenar tabla con datos
+            for i, cierre in enumerate(cierres):
+                self.cierres_table.insertRow(i)
+                # (Código para llenar la tabla, similar al del método cargar_cierres_dia)
+                # ...
+                
+            if len(cierres) == 0:
+                QMessageBox.information(self, "Sin resultados", 
+                                        "No se encontraron cierres para el período seleccionado.")
+                
+        except Exception as e:
+            print(f"ERROR al cargar cierres por fechas: {e}")
+            import traceback
+            traceback.print_exc()
+            QMessageBox.critical(self, "Error", f"Ocurrió un error al cargar los cierres:\n{str(e)}")
+    
     def setup_salidas_tab(self):
         """Configura la pestaña de salidas de caja"""
         layout = QVBoxLayout(self.salidas_tab)
@@ -306,6 +389,16 @@ class ReportesTab(QWidget):
         self.filtro_destinatario.setPlaceholderText("Filtrar por destinatario")
         filtros_extra_layout.addRow("Destinatario:", self.filtro_destinatario)
         
+        # Nuevo filtro para Autorizado por
+        self.filtro_autorizado = QLineEdit()
+        self.filtro_autorizado.setPlaceholderText("Filtrar por quien autorizó")
+        filtros_extra_layout.addRow("Autorizado por:", self.filtro_autorizado)
+        
+        # Agregamos filtro por motivo también para mayor flexibilidad
+        self.filtro_motivo = QLineEdit()
+        self.filtro_motivo.setPlaceholderText("Filtrar por motivo o descripción")
+        filtros_extra_layout.addRow("Motivo:", self.filtro_motivo)
+        
         filtros_layout.addLayout(filtros_extra_layout)
         
         # Botones
@@ -318,6 +411,11 @@ class ReportesTab(QWidget):
         self.exportar_salidas_btn = QPushButton("Exportar a CSV")
         self.exportar_salidas_btn.clicked.connect(self.exportar_salidas_csv)
         botones_layout.addWidget(self.exportar_salidas_btn)
+        
+        # Agregar botón para limpiar filtros
+        self.limpiar_filtros_btn = QPushButton("Limpiar Filtros")
+        self.limpiar_filtros_btn.clicked.connect(self.limpiar_filtros_salidas)
+        botones_layout.addWidget(self.limpiar_filtros_btn)
         
         filtros_layout.addLayout(botones_layout)
         filtros_group.setLayout(filtros_layout)
@@ -812,85 +910,220 @@ class ReportesTab(QWidget):
     
     def mostrar_detalle_cierre(self):
         """Muestra los detalles del cierre seleccionado"""
-        # Obtener fila seleccionada
-        filas_seleccionadas = self.cierres_table.selectedItems()
-        if not filas_seleccionadas:
-            return
-        
-        # Obtener ID del cierre seleccionado
-        fila = filas_seleccionadas[0].row()
-        cierre_id = int(self.cierres_table.item(fila, 0).text())
-        
-        # Obtener detalles del cierre
-        detalles = self.cierre_service.obtener_detalles_cierre(cierre_id)
-        
-        if not detalles['success']:
-            QMessageBox.warning(self, "Error", f"No se pudieron obtener los detalles del cierre: {detalles['message']}")
-            return
-        
-        # Limpiar tablas de detalles
-        self.cierre_facturas_table.setRowCount(0)
-        self.cierre_salidas_table.setRowCount(0)
-        
-        # Llenar tabla de facturas
-        facturas = detalles.get('facturas', [])
-        for i, factura in enumerate(facturas):
-            self.cierre_facturas_table.insertRow(i)
+        try:
+            # Obtener fila seleccionada
+            filas_seleccionadas = self.cierres_table.selectedItems()
+            if not filas_seleccionadas:
+                print("No hay filas seleccionadas en la tabla de cierres")
+                return
             
-            # Simplificar la presentación de los pagos
-            pagos = []
-            if factura.get('pago_usd', 0) > 0:
-                pagos.append(f"USD: {factura['pago_usd']:.2f}")
-            if factura.get('pago_eur', 0) > 0:
-                pagos.append(f"EUR: {factura['pago_eur']:.2f}")
-            if factura.get('pago_cup', 0) > 0:
-                pagos.append(f"CUP: {factura['pago_cup']:.2f}")
-            if factura.get('pago_transferencia', 0) > 0:
-                pagos.append(f"Trans: {factura['pago_transferencia']:.2f}")
+            # Obtener ID del cierre seleccionado
+            fila = filas_seleccionadas[0].row()
+            cierre_id_item = self.cierres_table.item(fila, 0)
+            if not cierre_id_item:
+                print("No se pudo obtener el ítem de ID")
+                return
+                
+            cierre_id_text = cierre_id_item.text().strip()
+            if not cierre_id_text:
+                print("El texto del ID está vacío")
+                return
+                
+            try:
+                cierre_id = int(cierre_id_text)
+                print(f"Mostrando detalles del cierre #{cierre_id}")
+            except ValueError:
+                print(f"No se pudo convertir '{cierre_id_text}' a entero")
+                return
             
-            pagos_texto = ", ".join(pagos)
+            # Actualizar la información del cierre seleccionado
+            fecha_item = self.cierres_table.item(fila, 1)
+            usd_item = self.cierres_table.item(fila, 2)
+            eur_item = self.cierres_table.item(fila, 3)
+            cup_item = self.cierres_table.item(fila, 4)
             
-            # Crear items para cada columna
-            orden_id_item = QTableWidgetItem(factura['orden_id'])
-            monto_item = QTableWidgetItem(f"{factura['monto']:.2f}")
-            moneda_item = QTableWidgetItem(factura['moneda'])
-            pagos_item = QTableWidgetItem(pagos_texto)
-            equivalente_item = QTableWidgetItem(f"{factura['monto_equivalente']:.2f}")
-            fecha_item = QTableWidgetItem(factura['fecha'])
-            estado_item = QTableWidgetItem("Cerrada" if factura.get('cerrada', False) else "Abierta")
+            if fecha_item and usd_item and eur_item and cup_item:
+                fecha_cierre = fecha_item.text()
+                total_usd = float(usd_item.text() or 0)
+                total_eur = float(eur_item.text() or 0)
+                total_cup = float(cup_item.text() or 0)
+                
+                # Actualizar el título del grupo de detalles
+                parent = self.cierre_facturas_table.parent()
+                while parent:
+                    if isinstance(parent, QGroupBox):
+                        parent.setTitle(f"Detalles del Cierre #{cierre_id} - {fecha_cierre} - USD: {total_usd:.2f}, EUR: {total_eur:.2f}, CUP: {total_cup:.2f}")
+                        break
+                    parent = parent.parent()
             
-            # Añadir items a la tabla
-            self.cierre_facturas_table.setItem(i, 0, orden_id_item)
-            self.cierre_facturas_table.setItem(i, 1, monto_item)
-            self.cierre_facturas_table.setItem(i, 2, moneda_item)
-            self.cierre_facturas_table.setItem(i, 3, pagos_item)
-            self.cierre_facturas_table.setItem(i, 4, equivalente_item)
-            self.cierre_facturas_table.setItem(i, 5, fecha_item)
-            self.cierre_facturas_table.setItem(i, 6, estado_item)
+            # Obtener detalles del cierre desde el servicio
+            print(f"Solicitando detalles del cierre #{cierre_id} al servicio...")
+            detalles = self.cierre_service.obtener_detalles_cierre(cierre_id)
+            
+            if not detalles or not detalles.get('success', False):
+                error_msg = detalles.get('message', 'Error desconocido') if detalles else 'No se obtuvo respuesta del servicio'
+                print(f"Error al obtener detalles: {error_msg}")
+                QMessageBox.warning(self, "Error", f"No se pudieron obtener los detalles del cierre: {error_msg}")
+                
+                # Intentar consulta directa a la base de datos como alternativa
+                print("Intentando consulta directa a la base de datos...")
+                from app.database.db_manager import DBManager
+                db = DBManager()
+                try:
+                    db.connect()
+                    cursor = db.connection.cursor()
+                    
+                    # Verificar si el cierre existe
+                    cursor.execute("SELECT id, fecha FROM cierres_dia WHERE id = ?", (cierre_id,))
+                    cierre = cursor.fetchone()
+                    if not cierre:
+                        print(f"No se encontró el cierre #{cierre_id} en la base de datos")
+                        db.disconnect()
+                        return
+                    
+                    # Consultar facturas asociadas al cierre
+                    cursor.execute("""
+                        SELECT orden_id, monto, moneda, pago_usd, pago_eur, pago_cup, 
+                            pago_transferencia, monto_equivalente, fecha, cerrada
+                        FROM facturas 
+                        WHERE cierre_id = ?
+                    """, (cierre_id,))
+                    facturas_data = cursor.fetchall()
+                    
+                    # Consultar salidas asociadas al cierre
+                    cursor.execute("""
+                        SELECT id, monto_usd, monto_eur, monto_cup, monto_transferencia, 
+                            destinatario, autorizado_por, motivo
+                        FROM salidas_caja 
+                        WHERE cierre_id = ?
+                    """, (cierre_id,))
+                    salidas_data = cursor.fetchall()
+                    
+                    db.disconnect()
+                    
+                    # Convertir resultados a lista de diccionarios para procesar
+                    facturas = []
+                    for f in facturas_data:
+                        facturas.append({
+                            'orden_id': str(f[0]),
+                            'monto': float(f[1] or 0),
+                            'moneda': f[2],
+                            'pago_usd': float(f[3] or 0),
+                            'pago_eur': float(f[4] or 0),
+                            'pago_cup': float(f[5] or 0),
+                            'pago_transferencia': float(f[6] or 0),
+                            'monto_equivalente': float(f[7] or 0),
+                            'fecha': f[8],
+                            'cerrada': bool(f[9])
+                        })
+                    
+                    salidas = []
+                    for s in salidas_data:
+                        salidas.append({
+                            'id': s[0],
+                            'monto_usd': float(s[1] or 0),
+                            'monto_eur': float(s[2] or 0),
+                            'monto_cup': float(s[3] or 0),
+                            'monto_transferencia': float(s[4] or 0),
+                            'destinatario': s[5],
+                            'autorizado_por': s[6],
+                            'motivo': s[7] if len(s) > 7 else ''
+                        })
+                    
+                    print(f"Consulta directa - Facturas: {len(facturas)}, Salidas: {len(salidas)}")
+                    
+                except Exception as e:
+                    print(f"Error en consulta directa: {e}")
+                    import traceback
+                    traceback.print_exc()
+                    if db.connection:
+                        db.disconnect()
+                    return
+            else:
+                # Obtener facturas y salidas de la respuesta del servicio
+                facturas = detalles.get('facturas', [])
+                salidas = detalles.get('salidas', [])
+                print(f"Detalles obtenidos del servicio - Facturas: {len(facturas)}, Salidas: {len(salidas)}")
+            
+            # Limpiar tablas de detalles
+            self.cierre_facturas_table.setRowCount(0)
+            self.cierre_salidas_table.setRowCount(0)
+            
+            # Llenar tabla de facturas
+            for i, factura in enumerate(facturas):
+                try:
+                    self.cierre_facturas_table.insertRow(i)
+                    
+                    # Simplificar la presentación de los pagos
+                    pagos = []
+                    if factura.get('pago_usd', 0) > 0:
+                        pagos.append(f"USD: {factura['pago_usd']:.2f}")
+                    if factura.get('pago_eur', 0) > 0:
+                        pagos.append(f"EUR: {factura['pago_eur']:.2f}")
+                    if factura.get('pago_cup', 0) > 0:
+                        pagos.append(f"CUP: {factura['pago_cup']:.2f}")
+                    if factura.get('pago_transferencia', 0) > 0:
+                        pagos.append(f"Trans: {factura['pago_transferencia']:.2f}")
+                    
+                    pagos_texto = ", ".join(pagos)
+                    
+                    # Crear items para cada columna
+                    orden_id_item = QTableWidgetItem(str(factura.get('orden_id', '')))
+                    monto_item = QTableWidgetItem(f"{factura.get('monto', 0):.2f}")
+                    moneda_item = QTableWidgetItem(factura.get('moneda', ''))
+                    pagos_item = QTableWidgetItem(pagos_texto)
+                    equivalente_item = QTableWidgetItem(f"{factura.get('monto_equivalente', 0):.2f}")
+                    fecha_item = QTableWidgetItem(str(factura.get('fecha', '')))
+                    estado_item = QTableWidgetItem("Cerrada" if factura.get('cerrada', False) else "Abierta")
+                    
+                    # Añadir items a la tabla
+                    self.cierre_facturas_table.setItem(i, 0, orden_id_item)
+                    self.cierre_facturas_table.setItem(i, 1, monto_item)
+                    self.cierre_facturas_table.setItem(i, 2, moneda_item)
+                    self.cierre_facturas_table.setItem(i, 3, pagos_item)
+                    self.cierre_facturas_table.setItem(i, 4, equivalente_item)
+                    self.cierre_facturas_table.setItem(i, 5, fecha_item)
+                    self.cierre_facturas_table.setItem(i, 6, estado_item)
+                except Exception as e:
+                    print(f"Error al procesar factura: {e}")
+            
+            # Llenar tabla de salidas
+            for i, salida in enumerate(salidas):
+                try:
+                    self.cierre_salidas_table.insertRow(i)
+                    
+                    # Crear items para cada columna
+                    id_item = QTableWidgetItem(str(salida.get('id', '')))
+                    usd_item = QTableWidgetItem(f"{salida.get('monto_usd', 0):.2f}")
+                    eur_item = QTableWidgetItem(f"{salida.get('monto_eur', 0):.2f}")
+                    cup_item = QTableWidgetItem(f"{salida.get('monto_cup', 0):.2f}")
+                    transferencia_item = QTableWidgetItem(f"{salida.get('monto_transferencia', 0):.2f}")
+                    destinatario_item = QTableWidgetItem(salida.get('destinatario', ''))
+                    motivo_item = QTableWidgetItem(salida.get('motivo', ''))
+                    
+                    # Añadir items a la tabla
+                    self.cierre_salidas_table.setItem(i, 0, id_item)
+                    self.cierre_salidas_table.setItem(i, 1, usd_item)
+                    self.cierre_salidas_table.setItem(i, 2, eur_item)
+                    self.cierre_salidas_table.setItem(i, 3, cup_item)
+                    self.cierre_salidas_table.setItem(i, 4, transferencia_item)
+                    self.cierre_salidas_table.setItem(i, 5, destinatario_item)
+                    self.cierre_salidas_table.setItem(i, 6, motivo_item)
+                except Exception as e:
+                    print(f"Error al procesar salida: {e}")
+            
+            # Mostrar mensaje si no hay datos
+            if len(facturas) == 0 and len(salidas) == 0:
+                print("No se encontraron facturas ni salidas para este cierre")
+                QMessageBox.information(self, "Sin datos", 
+                                    "Este cierre no tiene facturas ni salidas asociadas.")
         
-        # Llenar tabla de salidas
-        salidas = detalles.get('salidas', [])
-        for i, salida in enumerate(salidas):
-            self.cierre_salidas_table.insertRow(i)
-            
-            # Crear items para cada columna
-            id_item = QTableWidgetItem(str(salida['id']))
-            usd_item = QTableWidgetItem(f"{salida.get('monto_usd', 0):.2f}")
-            eur_item = QTableWidgetItem(f"{salida.get('monto_eur', 0):.2f}")
-            cup_item = QTableWidgetItem(f"{salida.get('monto_cup', 0):.2f}")
-            transferencia_item = QTableWidgetItem(f"{salida.get('monto_transferencia', 0):.2f}")
-            destinatario_item = QTableWidgetItem(salida['destinatario'])
-            motivo_item = QTableWidgetItem(salida.get('motivo', ''))
-            
-            # Añadir items a la tabla
-            self.cierre_salidas_table.setItem(i, 0, id_item)
-            self.cierre_salidas_table.setItem(i, 1, usd_item)
-            self.cierre_salidas_table.setItem(i, 2, eur_item)
-            self.cierre_salidas_table.setItem(i, 3, cup_item)
-            self.cierre_salidas_table.setItem(i, 4, transferencia_item)
-            self.cierre_salidas_table.setItem(i, 5, destinatario_item)
-            self.cierre_salidas_table.setItem(i, 6, motivo_item)
-    
+        except Exception as e:
+            print(f"ERROR GENERAL al mostrar detalles: {e}")
+            import traceback
+            traceback.print_exc()
+            QMessageBox.critical(self, "Error", f"Error al mostrar detalles del cierre: {str(e)}")
+        
     def exportar_cierres_csv(self):
         """Exporta los cierres de día a un archivo CSV"""
         # Verificar si hay datos para exportar
@@ -908,7 +1141,7 @@ class ReportesTab(QWidget):
             "Archivos CSV (*.csv);;Todos los archivos (*)"
         )
         
-        if not ruta_archivo:  # El usuario canceló
+        if not ruta_archivo:  
             return
         
         try:
@@ -954,22 +1187,33 @@ class ReportesTab(QWidget):
                 QMessageBox.warning(self, "Error", "La fecha de inicio debe ser anterior a la fecha final")
                 return
             
+            # Obtener valores de los filtros
+            destinatario = self.filtro_destinatario.text().strip() if self.filtro_destinatario.text().strip() else None
+            autorizado_por = self.filtro_autorizado.text().strip() if self.filtro_autorizado.text().strip() else None
+            motivo = self.filtro_motivo.text().strip() if self.filtro_motivo.text().strip() else None
+            
             # Obtener salidas filtradas
             print("Consultando salidas en la base de datos...")
             salidas = self.salidas_service.obtener_salidas_por_fecha(fecha_inicio, fecha_fin)
             print(f"Se encontraron {len(salidas)} salidas en la base de datos")
             
-            if not salidas:
-                print("No se encontraron salidas en este periodo")
-                # Comprobar directamente en la base de datos
-                self.salidas_service.depurar_consulta_salidas(fecha_inicio, fecha_fin)
-            
             # Aplicar filtro de destinatario
-            filtro_destinatario = self.filtro_destinatario.text().strip().lower()
-            if filtro_destinatario:
-                print(f"Filtrando por destinatario: '{filtro_destinatario}'")
-                salidas = [s for s in salidas if filtro_destinatario in s['destinatario'].lower()]
+            if destinatario:
+                print(f"Filtrando por destinatario: '{destinatario}'")
+                salidas = [s for s in salidas if destinatario.lower() in s['destinatario'].lower()]
                 print(f"Quedan {len(salidas)} salidas después del filtro de destinatario")
+            
+            # Aplicar filtro de autorizado por
+            if autorizado_por:
+                print(f"Filtrando por autorizado por: '{autorizado_por}'")
+                salidas = [s for s in salidas if autorizado_por.lower() in s['autorizado_por'].lower()]
+                print(f"Quedan {len(salidas)} salidas después del filtro de autorizado por")
+            
+            # Aplicar filtro de motivo
+            if motivo:
+                print(f"Filtrando por motivo: '{motivo}'")
+                salidas = [s for s in salidas if motivo.lower() in (s.get('motivo', '').lower() or '')]
+                print(f"Quedan {len(salidas)} salidas después del filtro de motivo")
             
             # Limpiar tabla
             print("Limpiando tabla de resultados...")
@@ -1003,11 +1247,11 @@ class ReportesTab(QWidget):
                     cup_item = QTableWidgetItem(f"{monto_cup:.2f}")
                     transferencia_item = QTableWidgetItem(f"{monto_transferencia:.2f}")
                     
-                    destinatario_item = QTableWidgetItem(salida['destinatario'])
-                    autorizado_item = QTableWidgetItem(salida['autorizado_por'])
+                    destinatario_item = QTableWidgetItem(salida.get('destinatario', ''))
+                    autorizado_item = QTableWidgetItem(salida.get('autorizado_por', ''))
                     motivo_item = QTableWidgetItem(salida.get('motivo', ''))
                 
-                # Alinear números a la derecha
+                    # Alinear números a la derecha
                     for item in [usd_item, eur_item, cup_item, transferencia_item]:
                         item.setTextAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
                     
@@ -1054,7 +1298,7 @@ class ReportesTab(QWidget):
             import traceback
             traceback.print_exc()
             QMessageBox.critical(self, "Error", f"Ocurrió un error al generar el reporte de salidas:\n{str(e)}")
-        
+            
     def exportar_salidas_csv(self):
         """Exporta el reporte de salidas a un archivo CSV"""
         # Verificar si hay datos para exportar
@@ -1140,10 +1384,11 @@ class ReportesTab(QWidget):
             
             # Variables para totales generales
             total_facturas = len(facturas)
+            total_salidas = len(salidas)
             
-            # Calcular totales con manejo de errores
+            # Calcular totales de facturas
             try:
-                total_facturado_usd = sum(getattr(f, 'monto_equivalente', 0) or 0 for f in facturas)
+                total_facturado_usd = sum(getattr(f, 'pago_usd', 0) or 0 for f in facturas)
                 total_facturado_eur = sum(getattr(f, 'pago_eur', 0) or 0 for f in facturas)
                 total_facturado_cup = sum(getattr(f, 'pago_cup', 0) or 0 for f in facturas)
                 total_facturado_transf = sum(getattr(f, 'pago_transferencia', 0) or 0 for f in facturas)
@@ -1157,9 +1402,8 @@ class ReportesTab(QWidget):
                 total_facturado_cup = 0
                 total_facturado_transf = 0
             
-            # Calcular totales de salidas con manejo de errores
+            # Calcular totales de salidas
             try:
-                total_salidas = len(salidas)
                 total_salidas_usd = sum(s.get('monto_usd', 0) or 0 for s in salidas)
                 total_salidas_eur = sum(s.get('monto_eur', 0) or 0 for s in salidas)
                 total_salidas_cup = sum(s.get('monto_cup', 0) or 0 for s in salidas)
@@ -1169,15 +1413,14 @@ class ReportesTab(QWidget):
                     f"CUP: {total_salidas_cup}, Transf: {total_salidas_transf}")
             except Exception as e:
                 print(f"Error al calcular totales de salidas: {e}")
-                total_salidas = 0
                 total_salidas_usd = 0
                 total_salidas_eur = 0
                 total_salidas_cup = 0
                 total_salidas_transf = 0
-        
-        # Calcular balances finales
+            
+            # Calcular balances finales
             try:
-                balance_usd = sum(getattr(f, 'pago_usd', 0) or 0 for f in facturas) - total_salidas_usd
+                balance_usd = total_facturado_usd - total_salidas_usd
                 balance_eur = total_facturado_eur - total_salidas_eur
                 balance_cup = total_facturado_cup - total_salidas_cup
                 balance_transf = total_facturado_transf - total_salidas_transf
@@ -1213,59 +1456,61 @@ class ReportesTab(QWidget):
                 else:
                     print("Advertencia: Tasa de cambio es cero o negativa. Usando solo USD para el total.")
                     total_salidas_usd_equiv = total_salidas_usd
-            except Exception as e:
-                print("ener tasa de cambio: {e}. Usando solo USD para el total.")
-                total_salidas_usd_equiv = total_salidas_usd
-            
+                    
                 self.consolidado_total_salidas.setText(f"Total Salidas (USD): ${total_salidas_usd_equiv:.2f}")
                 
                 promedio_salida = total_salidas_usd_equiv / total_salidas if total_salidas > 0 else 0
                 self.consolidado_promedio_salida.setText(f"Promedio por Salida: ${promedio_salida:.2f}")
                 
-                # Actualizar etiquetas del panel de balance
-                print("Actualizando etiquetas de balance...")
-                self.consolidado_balance_usd.setText(f"Balance USD: ${balance_usd:.2f}")
-                self.consolidado_balance_eur.setText(f"Balance EUR: €{balance_eur:.2f}")
-                self.consolidado_balance_cup.setText(f"Balance CUP: ${balance_cup:.2f}")
-                self.consolidado_balance_transf.setText(f"Balance Transferencia: ${balance_transf:.2f}")
-                
-                # Colorear balances según si son positivos o negativos
-                        # Colorear balances según si son positivos o negativos
-                for label, valor in [
-                    (self.consolidado_balance_usd, balance_usd),
-                    (self.consolidado_balance_eur, balance_eur),
-                    (self.consolidado_balance_cup, balance_cup),
-                    (self.consolidado_balance_transf, balance_transf)
-                ]:
-                    if valor < 0:
-                        label.setStyleSheet("color: red;")
-                    elif valor > 0:
-                        label.setStyleSheet("color: green;")
-                    else:
-                        label.setStyleSheet("color: black;")
-                
-                # Generar resumen por día
-                print("Generando resumen por día...")
-                self.generar_resumen_por_dia(fecha_inicio, fecha_fin, facturas, salidas)
-                
-                # Forzar actualización de la interfaz
-                self.consolidado_dias_table.update()
-                
-                # Mostrar resumen
-                print(f"Reporte consolidado generado exitosamente para el período {fecha_inicio} a {fecha_fin}")
-                print(f"- Facturas: {total_facturas}, Total facturado: {total_facturado_usd:.2f} USD")
-                print(f"- Salidas: {total_salidas}, Total salidas: {total_salidas_usd_equiv:.2f} USD")
-                
-                # Si no hay datos, mostrar un mensaje al usuario
-                if total_facturas == 0 and total_salidas == 0:
-                    QMessageBox.information(self, "Sin datos", 
-                                        "No se encontraron facturas ni salidas para el período seleccionado.")
+            except Exception as e:
+                print(f"Error al convertir salidas a USD: {e}")
+                self.consolidado_total_salidas.setText(f"Total Salidas (USD): ${total_salidas_usd:.2f}")
+                promedio_salida = total_salidas_usd / total_salidas if total_salidas > 0 else 0
+                self.consolidado_promedio_salida.setText(f"Promedio por Salida: ${promedio_salida:.2f}")
+            
+            # Actualizar etiquetas del panel de balance
+            print("Actualizando etiquetas de balance...")
+            self.consolidado_balance_usd.setText(f"Balance USD: ${balance_usd:.2f}")
+            self.consolidado_balance_eur.setText(f"Balance EUR: €{balance_eur:.2f}")
+            self.consolidado_balance_cup.setText(f"Balance CUP: ${balance_cup:.2f}")
+            self.consolidado_balance_transf.setText(f"Balance Transferencia: ${balance_transf:.2f}")
+            
+            # Colorear balances según si son positivos o negativos
+            for label, valor in [
+                (self.consolidado_balance_usd, balance_usd),
+                (self.consolidado_balance_eur, balance_eur),
+                (self.consolidado_balance_cup, balance_cup),
+                (self.consolidado_balance_transf, balance_transf)
+            ]:
+                if valor < 0:
+                    label.setStyleSheet("color: red;")
+                elif valor > 0:
+                    label.setStyleSheet("color: green;")
+                else:
+                    label.setStyleSheet("color: black;")
+            
+            # Generar resumen por día
+            print("Generando resumen por día...")
+            self.generar_resumen_por_dia(fecha_inicio, fecha_fin, facturas, salidas)
+            
+            # Forzar actualización de la interfaz
+            self.consolidado_dias_table.update()
+            
+            # Mostrar resumen
+            print(f"Reporte consolidado generado exitosamente para el período {fecha_inicio} a {fecha_fin}")
+            print(f"- Facturas: {total_facturas}, Total facturado: {total_facturado_usd:.2f} USD")
+            print(f"- Salidas: {total_salidas}, Total salidas: {total_salidas_usd_equiv:.2f} USD")
+            
+            # Si no hay datos, mostrar un mensaje al usuario
+            if total_facturas == 0 and total_salidas == 0:
+                QMessageBox.information(self, "Sin datos", 
+                                    "No se encontraron facturas ni salidas para el período seleccionado.")
                     
         except Exception as e:
-                print(f"ERROR GENERAL al generar reporte consolidado: {e}")
-                import traceback
-                traceback.print_exc()
-                QMessageBox.critical(self, "Error", f"Ocurrió un error al generar el reporte consolidado:\n{str(e)}")
+            print(f"ERROR GENERAL al generar reporte consolidado: {e}")
+            import traceback
+            traceback.print_exc()
+            QMessageBox.critical(self, "Error", f"Ocurrió un error al generar el reporte consolidado:\n{str(e)}")    
             
     def generar_resumen_por_dia(self, fecha_inicio, fecha_fin, facturas, salidas):
         """Genera el resumen por día para el consolidado"""

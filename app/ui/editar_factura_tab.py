@@ -55,16 +55,38 @@ class EditarFacturaTab(QWidget):
         
         # Sección de búsqueda de factura
         busqueda_group = QGroupBox("Buscar Factura")
-        busqueda_layout = QHBoxLayout()
+        busqueda_layout = QVBoxLayout()  # Cambiado a vertical para mejor organización
+        
+        # Agregar texto explicativo para enfatizar el uso del orden_id
+        instruccion_label = QLabel("Se recomienda buscar por ID de Orden para mayor precisión:")
+        instruccion_label.setStyleSheet("font-style: italic; color: #555555;")
+        busqueda_layout.addWidget(instruccion_label)
+        
+        # Layout horizontal para el campo de búsqueda y botón
+        input_layout = QHBoxLayout()
         
         self.id_factura_input = QLineEdit()
-        self.id_factura_input.setPlaceholderText("ID de la factura o ID de orden")
-        busqueda_layout.addWidget(self.id_factura_input)
+        self.id_factura_input.setPlaceholderText("ID de Orden (recomendado) o ID interno de factura")
+        self.id_factura_input.setStyleSheet("font-size: 14px; padding: 8px;")
+        input_layout.addWidget(self.id_factura_input, 1)  # 1 es el factor de estiramiento
         
         buscar_btn = QPushButton("Buscar")
+        buscar_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #0078D7;
+                color: white;
+                font-weight: bold;
+                padding: 8px 15px;
+                border-radius: 4px;
+            }
+            QPushButton:hover {
+                background-color: #0063B1;
+            }
+        """)
         buscar_btn.clicked.connect(self.buscar_factura)
-        busqueda_layout.addWidget(buscar_btn)
+        input_layout.addWidget(buscar_btn)
         
+        busqueda_layout.addLayout(input_layout)
         busqueda_group.setLayout(busqueda_layout)
         scroll_layout.addWidget(busqueda_group)
         
@@ -75,8 +97,15 @@ class EditarFacturaTab(QWidget):
         detalles_group = QGroupBox("Detalles de la Factura")
         detalles_layout = QFormLayout()
         
+        # Destacar visualmente el ID de Orden
+        orden_id_titulo = QLabel("ID de Orden:")
+        orden_id_titulo.setStyleSheet("font-weight: bold; color: #003366; font-size: 14px;")
         self.orden_id_label = QLabel("--")
-        detalles_layout.addRow("ID de Orden:", self.orden_id_label)
+        self.orden_id_label.setStyleSheet("font-weight: bold; color: #003366; font-size: 14px;")
+        detalles_layout.addRow(orden_id_titulo, self.orden_id_label)
+        
+        self.id_interno_label = QLabel("--")
+        detalles_layout.addRow("ID interno:", self.id_interno_label)
         
         self.monto_label = QLabel("--")
         detalles_layout.addRow("Monto:", self.monto_label)
@@ -192,16 +221,35 @@ class EditarFacturaTab(QWidget):
         main_layout.addWidget(scroll_area, 1)
         
         # Tabla de facturas recientes
+        facturas_label = QLabel("Facturas Recientes (sin cerrar):")
+        facturas_label.setStyleSheet("font-weight: bold; margin-top: 10px;")
+        main_layout.addWidget(facturas_label)
+        
+        # Añadir una nota sobre el orden_id
+        nota_tabla = QLabel("Haga clic en cualquier factura para editarla. El ID de Orden es el identificador principal.")
+        nota_tabla.setStyleSheet("font-style: italic; color: #555555;")
+        main_layout.addWidget(nota_tabla)
+        
         self.facturas_table = QTableWidget()
         self.facturas_table.setColumnCount(9)
         self.facturas_table.setHorizontalHeaderLabels([
-            "ID", "Orden ID", "Monto", "Moneda", "USD", "EUR", "CUP", "Transfer", "Fecha"
+            "ID Interno", "ID de Orden", "Monto", "Moneda", "USD", "EUR", "CUP", "Transfer", "Fecha"
         ])
         self.facturas_table.setMinimumHeight(200)
-        self.facturas_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
-        self.facturas_table.itemClicked.connect(self.seleccionar_factura_de_tabla)
         
-        main_layout.addWidget(QLabel("Facturas Recientes (sin cerrar):"))
+        # Configurar el ancho de las columnas para destacar el ID de Orden
+        self.facturas_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Interactive)
+        self.facturas_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)  # ID interno
+        self.facturas_table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)  # ID de Orden - más espacio
+        
+        # Hacer que la columna de ID de Orden sea más visible
+        self.facturas_table.setColumnWidth(1, 150)  # Ancho en píxeles
+        
+        # Estilizar el encabezado de ID de Orden
+        header = self.facturas_table.horizontalHeader()
+        header.setStyleSheet("QHeaderView::section:checked { background-color: #E0E0FF; }")
+        
+        self.facturas_table.itemClicked.connect(self.seleccionar_factura_de_tabla)
         main_layout.addWidget(self.facturas_table)
         
         # Cargar facturas recientes
@@ -265,26 +313,40 @@ class EditarFacturaTab(QWidget):
         """Busca una factura por ID o ID de orden"""
         id_busqueda = self.id_factura_input.text().strip()
         if not id_busqueda:
-            QMessageBox.warning(self, "Error", "Ingrese un ID de factura o ID de orden para buscar")
+            QMessageBox.warning(self, "Error", "Ingrese un ID de orden (recomendado) o ID interno de factura")
             return
         
-        try:
-            # Intentar buscar como ID numérico de factura
-            factura_id = int(id_busqueda)
-            factura = self.facturacion_service.obtener_factura_por_id(factura_id)
-        except ValueError:
-            # Si no es un número, buscar como ID de orden
-            facturas = self.facturacion_service.obtener_facturas_por_orden_id(id_busqueda)
-            factura = facturas[0] if facturas else None
+        # Intentar buscar primero como ID de orden
+        facturas = self.facturacion_service.obtener_facturas_por_orden_id(id_busqueda)
         
-        if not factura:
-            QMessageBox.warning(self, "No encontrada", "No se encontró ninguna factura con ese ID")
-            return
+        if facturas:
+            # Se encontró por orden_id
+            factura = facturas[0]
+            print(f"Factura encontrada por ID de Orden: {id_busqueda}")
+        else:
+            try:
+                # Intentar buscar como ID numérico de factura
+                factura_id = int(id_busqueda)
+                factura = self.facturacion_service.obtener_factura_por_id(factura_id)
+                
+                if not factura:
+                    QMessageBox.warning(self, "No encontrada", 
+                                    "No se encontró ninguna factura con ese ID interno")
+                    return
+                
+                print(f"Factura encontrada por ID interno: {id_busqueda}, " +
+                    f"ID de Orden: {factura.orden_id}")
+                    
+            except ValueError:
+                # No es un número y tampoco se encontró como orden_id
+                QMessageBox.warning(self, "No encontrada", 
+                                "No se encontró ninguna factura con ese ID de orden")
+                return
         
         # Verificar si la factura está cerrada
         if getattr(factura, 'cerrada', False):
             QMessageBox.warning(self, "Factura cerrada", 
-                            "⚠️ Esta factura ya está cerrada y no puede ser modificada ⚠️\n\n"
+                            f"⚠️ La factura con ID de Orden '{factura.orden_id}' ya está cerrada y no puede ser modificada ⚠️\n\n"
                             "Las facturas se cierran automáticamente después del cierre de día.")
             
             # Mostrar los detalles de la factura pero no permitir edición
@@ -300,11 +362,23 @@ class EditarFacturaTab(QWidget):
         # Habilitar campos de edición
         self.habilitar_campos_edicion(True)
 
+
     def mostrar_detalles_factura(self, factura, editable=True):
         """Muestra los detalles de la factura seleccionada"""
         try:
+            # Mostrar orden_id de forma más prominente
+            orden_id = str(factura.orden_id)
+            self.orden_id_label.setText(orden_id)
+            self.orden_id_label.setStyleSheet("font-weight: bold; font-size: 14px; color: #003366;")
+            
+            # Mostrar ID interno de forma secundaria
+            factura_id = getattr(factura, 'id', 'N/A')
+            
+            # Verificar si hemos añadido el label para ID interno en init_ui
+            if hasattr(self, 'id_interno_label'):
+                self.id_interno_label.setText(str(factura_id))
+            
             # Mostrar campos no editables
-            self.orden_id_label.setText(str(factura.orden_id))
             self.monto_label.setText(f"{factura.monto:.2f} {factura.moneda}")
             self.moneda_label.setText(factura.moneda)
             self.fecha_label.setText(factura.fecha.strftime("%Y-%m-%d %H:%M:%S"))
@@ -345,7 +419,7 @@ class EditarFacturaTab(QWidget):
                 self.factura_actual = factura
             else:
                 self.factura_actual = None
-                
+                    
         except Exception as e:
             print(f"Error al mostrar detalles de la factura: {e}")
             QMessageBox.warning(self, "Error", f"Error al cargar detalles: {str(e)}")
@@ -500,6 +574,7 @@ class EditarFacturaTab(QWidget):
         try:
             # Obtener valores
             factura_id = self.factura_actual.id
+            orden_id = self.factura_actual.orden_id  # Extraer el orden_id
             pago_usd = float(self.pago_usd_input.text() or 0)
             pago_eur = float(self.pago_eur_input.text() or 0)
             pago_cup = float(self.pago_cup_input.text() or 0)
@@ -529,7 +604,8 @@ class EditarFacturaTab(QWidget):
             )
             
             if resultado:
-                QMessageBox.information(self, "Éxito", "Factura actualizada correctamente")
+                QMessageBox.information(self, "Éxito", 
+                                    f"Factura con ID de Orden '{orden_id}' actualizada correctamente")
                 
                 # Actualizar factura actual
                 self.factura_actual = self.facturacion_service.obtener_factura_por_id(factura_id)
@@ -538,7 +614,8 @@ class EditarFacturaTab(QWidget):
                 # Recargar la tabla de facturas recientes
                 self.cargar_facturas_recientes()
             else:
-                QMessageBox.warning(self, "Error", "No se pudo actualizar la factura")
+                QMessageBox.warning(self, "Error", 
+                                f"No se pudo actualizar la factura con ID de Orden '{orden_id}'")
                 
         except ValueError as e:
             QMessageBox.warning(self, "Error", f"Error al procesar los valores: {str(e)}")

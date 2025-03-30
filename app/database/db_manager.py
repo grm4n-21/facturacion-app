@@ -128,7 +128,7 @@ class DatabaseManager:
         )
         ''')
         
-        # Tabla de facturas
+        # Tabla de facturas (con mensajero incluido)
         self.execute('''
         CREATE TABLE IF NOT EXISTS facturas (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -144,7 +144,8 @@ class DatabaseManager:
             tasa_usada REAL NOT NULL,      -- Tasa de cambio usada al momento de la factura
             fecha TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             dia_id INTEGER,
-            cerrada INTEGER DEFAULT 0
+            cerrada INTEGER DEFAULT 0,
+            mensajero TEXT DEFAULT 'No especificado'  -- Columna mensajero añadida
         )
         ''')
         
@@ -167,10 +168,8 @@ class DatabaseManager:
             fecha_cierre TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
         ''')
-        
-        self.commit()
 
-    # Tabla de salidas de caja
+        # Tabla de salidas de caja
         self.execute('''
         CREATE TABLE IF NOT EXISTS salidas_caja (
             id INTEGER PRIMARY KEY AUTOINCREMENT,

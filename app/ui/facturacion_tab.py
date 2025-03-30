@@ -114,6 +114,17 @@ class FacturacionTab(QWidget):
         
         factura_layout.addRow("ID de Orden:", orden_layout)
         
+        # Añadir campo para Mensajero (obligatorio)
+        mensajero_layout = QHBoxLayout()
+        self.mensajero_input = QLineEdit()
+        self.mensajero_input.setPlaceholderText("Nombre del mensajero (obligatorio)")
+        self.mensajero_input.setMinimumWidth(200)
+        # Estilo para indicar que es campo obligatorio
+        self.mensajero_input.setStyleSheet("QLineEdit { border: 1px solid #FFA500; }")
+        
+        mensajero_layout.addWidget(self.mensajero_input)
+        factura_layout.addRow("Mensajero:", mensajero_layout)
+        
         # Monto y moneda
         monto_layout = QHBoxLayout()
         self.monto_input = QLineEdit()
@@ -247,10 +258,10 @@ class FacturacionTab(QWidget):
         # Configurar una altura mínima para la tabla
         self.facturas_table = QTableWidget()
         self.facturas_table.setMinimumHeight(250)  # Altura mínima para la tabla
-        self.facturas_table.setColumnCount(9)
+        self.facturas_table.setColumnCount(10)  # Añadimos una columna para Mensajero
         self.facturas_table.setHorizontalHeaderLabels([
             "ID Orden", "Monto", "Moneda", "USD", "EUR", "CUP", "Transfer", 
-            "Equivalente", "Fecha"
+            "Equivalente", "Fecha", "Mensajero"  # Añadido "Mensajero"
         ])
         
         # Mejorar la visualización de la tabla
@@ -480,6 +491,11 @@ class FacturacionTab(QWidget):
         if not self.orden_id_input.text():
             QMessageBox.warning(self, "Error", "Debe ingresar el ID de orden")
             return
+        
+        # Validar el campo mensajero (obligatorio)
+        if not self.mensajero_input.text().strip():
+            QMessageBox.warning(self, "Error", "Debe ingresar el nombre del mensajero")
+            return
                 
         try:
             if not self.monto_input.text():
@@ -494,6 +510,7 @@ class FacturacionTab(QWidget):
             # Obtener valores
             orden_id = self.orden_id_input.text()
             moneda = self.moneda_combo.currentText()
+            mensajero = self.mensajero_input.text().strip()  # Obtener el mensajero
             
             # Obtener pagos
             pago_usd = float(self.pago_usd_input.text() or 0)
@@ -540,13 +557,14 @@ class FacturacionTab(QWidget):
             # Usar el servicio de facturación para registrar la factura
             resultado = self.facturacion_service.registrar_factura(
                 orden_id, monto, moneda, pago_usd, pago_eur, pago_cup, 
-                pago_transferencia, transferencia_id
+                pago_transferencia, transferencia_id, mensajero  # Añadido mensajero como argumento
             )
             
             if resultado:
                 # Limpiar campos
                 self.orden_id_input.clear()
                 self.monto_input.clear()
+                self.mensajero_input.clear()  # Limpiar el campo mensajero
                 self.pago_usd_input.clear()
                 self.pago_eur_input.clear()
                 self.pago_cup_input.clear()
@@ -569,7 +587,11 @@ class FacturacionTab(QWidget):
                     
                 QMessageBox.information(self, "Éxito", mensaje)
             else:
-                QMessageBox.warning(self, "Error", "No se pudo registrar la factura")
+                # Verificar si el error es por factura duplicada
+                if self.facturacion_service.verificar_orden_id_existente(orden_id):
+                    QMessageBox.warning(self, "Error", f"Ya existe una factura con el ID de orden '{orden_id}'")
+                else:
+                    QMessageBox.warning(self, "Error", "No se pudo registrar la factura")
                     
         except ValueError as e:
             QMessageBox.warning(self, "Error", f"Los valores ingresados no son válidos: {e}")
@@ -605,6 +627,10 @@ class FacturacionTab(QWidget):
             equivalente_item = QTableWidgetItem(f"{factura.monto_equivalente:.2f}")
             fecha_item = QTableWidgetItem(factura.fecha.strftime("%Y-%m-%d %H:%M"))
             
+            # Obtener el mensajero si existe el atributo, si no, mostrar "No especificado"
+            mensajero = getattr(factura, 'mensajero', "No especificado")
+            mensajero_item = QTableWidgetItem(mensajero)
+            
             # Alinear números a la derecha
             for item in [monto_item, pago_usd_item, pago_eur_item, pago_cup_item, 
                         pago_transferencia_item, equivalente_item]:
@@ -620,6 +646,7 @@ class FacturacionTab(QWidget):
             self.facturas_table.setItem(i, 6, pago_transferencia_item)
             self.facturas_table.setItem(i, 7, equivalente_item)
             self.facturas_table.setItem(i, 8, fecha_item)
+            self.facturas_table.setItem(i, 9, mensajero_item)  # Añadir el mensajero
 
     def actualizar_campo_id_transferencia(self):
         """Habilita o deshabilita el campo de ID de transferencia según el monto"""
