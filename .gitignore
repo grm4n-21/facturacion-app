@@ -119,3 +119,29 @@ target/
 
 # Specific to your app
 .DS_Store
+
+# PyInstaller
+build/
+dist/
+*.spec
+!facturacion_app.spec  # Asegúrate de incluir tu archivo spec
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+env/
+ENV/
+
+# IDEs
+.idea/
+.vscode/
+*.swp
+*~
+
+# No ignorar la carpeta data, pero sí su contenido excepto archivos importantes
+data/*
+!data/.gitkeep
