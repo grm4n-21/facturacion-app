@@ -3,11 +3,13 @@
 block_cipher = None
 
 a = Analysis(
-    ['app/main.py'],  # Script principal
-    pathex=[],
-    binaries=[],
+    ['app/main.py'],  # Ruta al script principal de tu aplicación
+    pathex=[],  # Debes ajustar si tienes rutas no estándar
+    binaries=[
+        ('C:\\path\\to\\libiconv.dll', '.'),  # Asegúrate de modificarlo con el path correcto
+    ],
     datas=[
-        ('data', 'data'),  # Incluir la carpeta de datos
+        ('data', 'data'),  # Incluye tus datos si es necesario
     ],
     hiddenimports=[
         'PyQt6', 'PyQt6.QtWidgets', 'PyQt6.QtCore', 'PyQt6.QtGui',

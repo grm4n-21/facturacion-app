@@ -6,7 +6,7 @@ on:
     tags: [ 'v*' ]
   pull_request:
     branches: [ main, master ]
-  workflow_dispatch:  # Permite ejecutar el workflow manualmente desde la interfaz de GitHub
+  workflow_dispatch:
 
 jobs:
   build-windows:
@@ -26,26 +26,21 @@ jobs:
       run: |
         python -m pip install --upgrade pip
         pip install -r requirements.txt
-        pip install pyinstaller
         
-    - name: Create PyInstaller spec file
+    - name: Ensure required DLLs are in place
       run: |
-        if (-Not (Test-Path "facturacion_app.spec")) {
-          pyinstaller --name="Sistema de Facturacion" --onefile --windowed --add-data="data;data" app/main.py --specpath .
-          # Esto creará el archivo spec automáticamente
-        }
+        # Copia manualmente los archivos DLL necesarios para pyzbar
+        # Asegúrate de que estas rutas son correctas
+        cp path/to/libiconv.dll .
         
     - name: Build with PyInstaller
       run: |
-        dir
-        pyinstaller --clean facturacion_app.spec
+        pyinstaller --onefile --windowed facturacion_app.spec
       
     - name: Create ZIP archive
       run: |
-        # Crear directorio para el paquete final si no existe
         mkdir -p output
         
-        # Comprobar si el ejecutable existe y copiarlo
         if (Test-Path "dist/Sistema de Facturacion.exe") {
           Copy-Item "dist/Sistema de Facturacion.exe" -Destination "output/"
           Compress-Archive -Path "output/*" -DestinationPath "Sistema_de_Facturacion_Windows.zip"
@@ -53,7 +48,6 @@ jobs:
           Write-Error "No se encontró el ejecutable. Verificando el contenido del directorio dist:"
           dir dist
           exit 1
-        }
         
     - name: Upload build artifact
       uses: actions/upload-artifact@v4
