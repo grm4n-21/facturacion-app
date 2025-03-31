@@ -33,7 +33,9 @@ jobs:
       
     - name: Create ZIP archive
       run: |
-        mkdir -p output
+        if (-Not (Test-Path "output")) {
+          mkdir output
+        }
         
         if (Test-Path "dist/Sistema de Facturacion.exe") {
           Copy-Item "dist/Sistema de Facturacion.exe" -Destination "output/"
@@ -42,6 +44,7 @@ jobs:
           Write-Error "No se encontró el ejecutable. Verificando el contenido del directorio dist:"
           dir dist
           exit 1
+        }
         
     - name: Upload build artifact
       uses: actions/upload-artifact@v4
