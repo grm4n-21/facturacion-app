@@ -120,11 +120,12 @@ target/
 # Specific to your app
 .DS_Store
 
+# PyInstaller spec file - necesario para el build
+!facturacion_app.spec
+
 # PyInstaller
 build/
 dist/
-*.spec
-!facturacion_app.spec  # Asegúrate de incluir tu archivo spec
 
 # Python
 __pycache__/
