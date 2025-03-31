@@ -15,13 +15,21 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from PyQt6.QtWidgets import QApplication
 from app.ui.main_window import MainWindow
+from app.ui.dialogs.login_dialog import LoginDialog
 
 def main():
     """Función principal que inicia la aplicación"""
     app = QApplication(sys.argv)
     app.setApplicationName("Sistema de Facturación")
     
-    # Crear y mostrar la ventana principal
+    # Mostrar diálogo de inicio de sesión
+    login_dialog = LoginDialog()
+    if login_dialog.exec() != LoginDialog.DialogCode.Accepted:
+        # Si el usuario cancela o ingresa clave incorrecta, salir
+        print("Acceso denegado: clave incorrecta o cancelación.")
+        return
+    
+    # Crear y mostrar la ventana principal solo si la clave es correcta
     window = MainWindow()
     window.show()
     
