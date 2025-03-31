@@ -27,12 +27,6 @@ jobs:
         python -m pip install --upgrade pip
         pip install -r requirements.txt
         
-    - name: Ensure required DLLs are in place
-      run: |
-        # Copia manualmente los archivos DLL necesarios para pyzbar
-        # Asegúrate de que estas rutas son correctas
-        cp path/to/libiconv.dll .
-        
     - name: Build with PyInstaller
       run: |
         pyinstaller --onefile --windowed facturacion_app.spec

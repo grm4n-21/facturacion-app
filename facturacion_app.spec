@@ -5,15 +5,13 @@ block_cipher = None
 a = Analysis(
     ['app/main.py'],  # Ruta al script principal de tu aplicación
     pathex=[],  # Debes ajustar si tienes rutas no estándar
-    binaries=[
-        ('C:\\path\\to\\libiconv.dll', '.'),  # Asegúrate de modificarlo con el path correcto
-    ],
+    binaries=[],
     datas=[
         ('data', 'data'),  # Incluye tus datos si es necesario
     ],
     hiddenimports=[
         'PyQt6', 'PyQt6.QtWidgets', 'PyQt6.QtCore', 'PyQt6.QtGui',
-        'numpy', 'cv2', 'pyzbar', 'sqlite3'
+        'numpy', 'cv2', 'sqlite3'
     ],
     hookspath=[],
     hooksconfig={},
