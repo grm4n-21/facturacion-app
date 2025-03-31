@@ -28,61 +28,11 @@ jobs:
         pip install -r requirements.txt
         pip install pyinstaller
         
-    - name: Check for spec file and create if needed
+    - name: Create PyInstaller spec file
       run: |
         if (-Not (Test-Path "facturacion_app.spec")) {
-          Write-Output "Spec file not found. Creating it..."
-          Set-Content -Path facturacion_app.spec -Value @'
-# -*- mode: python ; coding: utf-8 -*-
-
-block_cipher = None
-
-a = Analysis(
-    ['app/main.py'],  # Script principal
-    pathex=[],
-    binaries=[],
-    datas=[
-        ('data', 'data'),  # Incluir la carpeta de datos
-    ],
-    hiddenimports=[
-        'PyQt6', 'PyQt6.QtWidgets', 'PyQt6.QtCore', 'PyQt6.QtGui',
-        'numpy', 'cv2', 'pyzbar', 'sqlite3'
-    ],
-    hookspath=[],
-    hooksconfig={},
-    runtime_hooks=[],
-    excludes=[],
-    win_no_prefer_redirects=False,
-    win_private_assemblies=False,
-    cipher=block_cipher,
-    noarchive=False,
-)
-
-pyz = PYZ(a.pure, a.zipped_data, cipher=block_cipher)
-
-# Ejecutable único (standalone)
-exe = EXE(
-    pyz,
-    a.scripts,
-    a.binaries,        # Incluir todos los binarios en el ejecutable
-    a.zipfiles,        # Incluir todos los archivos zip en el ejecutable
-    a.datas,           # Incluir todos los datos en el ejecutable
-    [],
-    name='Sistema de Facturacion',
-    debug=False,
-    bootloader_ignore_signals=False,
-    strip=False,
-    upx=True,
-    upx_exclude=[],
-    runtime_tmpdir=None,
-    console=False,
-    disable_windowed_traceback=False,
-    argv_emulation=False,
-    target_arch=None,
-    codesign_identity=None,
-    entitlements_file=None,
-)
-'@
+          pyinstaller --name="Sistema de Facturacion" --onefile --windowed --add-data="data;data" app/main.py --specpath .
+          # Esto creará el archivo spec automáticamente
         }
         
     - name: Build with PyInstaller
@@ -92,7 +42,7 @@ exe = EXE(
       
     - name: Create ZIP archive
       run: |
-        # Crear directorio para el paquete final
+        # Crear directorio para el paquete final si no existe
         mkdir -p output
         
         # Comprobar si el ejecutable existe y copiarlo
