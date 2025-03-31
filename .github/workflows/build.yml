@@ -14,7 +14,7 @@ jobs:
     
     steps:
     - name: Checkout code
-      uses: actions/checkout@v4  # Actualizado a v4
+      uses: actions/checkout@v4
       
     - name: Set up Python
       uses: actions/setup-python@v4
@@ -28,17 +28,85 @@ jobs:
         pip install -r requirements.txt
         pip install pyinstaller
         
-      - name: Build with PyInstaller
-        run: |
-          # Usar directamente tu archivo spec optimizado para onefile
-          pyinstaller --clean facturacion_app.spec
+    - name: Check for spec file and create if needed
+      run: |
+        if (-Not (Test-Path "facturacion_app.spec")) {
+          Write-Output "Spec file not found. Creating it..."
+          Set-Content -Path facturacion_app.spec -Value @'
+# -*- mode: python ; coding: utf-8 -*-
+
+block_cipher = None
+
+a = Analysis(
+    ['app/main.py'],  # Script principal
+    pathex=[],
+    binaries=[],
+    datas=[
+        ('data', 'data'),  # Incluir la carpeta de datos
+    ],
+    hiddenimports=[
+        'PyQt6', 'PyQt6.QtWidgets', 'PyQt6.QtCore', 'PyQt6.QtGui',
+        'numpy', 'cv2', 'pyzbar', 'sqlite3'
+    ],
+    hookspath=[],
+    hooksconfig={},
+    runtime_hooks=[],
+    excludes=[],
+    win_no_prefer_redirects=False,
+    win_private_assemblies=False,
+    cipher=block_cipher,
+    noarchive=False,
+)
+
+pyz = PYZ(a.pure, a.zipped_data, cipher=block_cipher)
+
+# Ejecutable único (standalone)
+exe = EXE(
+    pyz,
+    a.scripts,
+    a.binaries,        # Incluir todos los binarios en el ejecutable
+    a.zipfiles,        # Incluir todos los archivos zip en el ejecutable
+    a.datas,           # Incluir todos los datos en el ejecutable
+    [],
+    name='Sistema de Facturacion',
+    debug=False,
+    bootloader_ignore_signals=False,
+    strip=False,
+    upx=True,
+    upx_exclude=[],
+    runtime_tmpdir=None,
+    console=False,
+    disable_windowed_traceback=False,
+    argv_emulation=False,
+    target_arch=None,
+    codesign_identity=None,
+    entitlements_file=None,
+)
+'@
+        }
+        
+    - name: Build with PyInstaller
+      run: |
+        dir
+        pyinstaller --clean facturacion_app.spec
       
-      - name: Create ZIP archive
-        run: |
-          # El ejecutable está directamente en la carpeta dist
-          Compress-Archive -Path "dist/Sistema de Facturacion.exe" -DestinationPath "Sistema_de_Facturacion_Windows.zip" 
+    - name: Create ZIP archive
+      run: |
+        # Crear directorio para el paquete final
+        mkdir -p output
+        
+        # Comprobar si el ejecutable existe y copiarlo
+        if (Test-Path "dist/Sistema de Facturacion.exe") {
+          Copy-Item "dist/Sistema de Facturacion.exe" -Destination "output/"
+          Compress-Archive -Path "output/*" -DestinationPath "Sistema_de_Facturacion_Windows.zip"
+        } else {
+          Write-Error "No se encontró el ejecutable. Verificando el contenido del directorio dist:"
+          dir dist
+          exit 1
+        }
+        
     - name: Upload build artifact
-      uses: actions/upload-artifact@v4  # Actualizado a v4
+      uses: actions/upload-artifact@v4
       with:
         name: windows-build
         path: Sistema_de_Facturacion_Windows.zip
