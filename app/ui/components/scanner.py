@@ -9,7 +9,6 @@ from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QLabel, QPushButton,
 from PyQt6.QtCore import Qt, QTimer, pyqtSignal
 from PyQt6.QtGui import QImage, QPixmap
 import cv2
-from pyzbar import pyzbar
 
 class ScannerWidget(QDialog):
     """Widget para escanear códigos de barras utilizando la cámara"""
@@ -78,53 +77,4 @@ class ScannerWidget(QDialog):
             self.camara.release()
             self.camara = None
     
-    def actualizar_frame(self):
-        """Actualiza el frame de video y busca códigos de barras"""
-        ret, frame = self.camara.read()
-        
-        if not ret:
-            return
-        
-        # Buscar códigos de barras en el frame
-        codigos = pyzbar.decode(frame)
-        
-        # Dibujar recuadros alrededor de los códigos encontrados
-        for codigo in codigos:
-            # Obtener las coordenadas del código
-            (x, y, w, h) = codigo.rect
-            
-            # Dibujar un rectángulo alrededor del código
-            cv2.rectangle(frame, (x, y), (x + w, y + h), (0, 255, 0), 2)
-            
-            # Decodificar los datos del código
-            codigo_data = codigo.data.decode("utf-8")
-            tipo_codigo = codigo.type
-            
-            # Dibujar la información del código
-            texto = f"{codigo_data} ({tipo_codigo})"
-            cv2.putText(frame, texto, (x, y - 10),
-                       cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
-            
-            # Emitir señal con el código escaneado
-            self.codigo_escaneado.emit(codigo_data)
-            
-            # Detener la cámara y aceptar el diálogo
-            self.detener_camara()
-            self.accept()
-            return
-        
-        # Convertir el frame de BGR (OpenCV) a RGB para Qt
-        frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-        
-        # Convertir el frame a QImage y luego a QPixmap
-        h, w, ch = frame_rgb.shape
-        bytes_per_line = ch * w
-        q_img = QImage(frame_rgb.data, w, h, bytes_per_line, QImage.Format.Format_RGB888)
-        pixmap = QPixmap.fromImage(q_img)
-        
-        # Redimensionar manteniendo proporciones
-        pixmap = pixmap.scaled(self.imagen_label.width(), self.imagen_label.height(),
-                              Qt.AspectRatioMode.KeepAspectRatio)
-        
-        # Mostrar el frame en el QLabel
-        self.imagen_label.setPixmap(pixmap)
+    
