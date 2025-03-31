@@ -7,6 +7,7 @@ Maneja conexiones, consultas y operaciones sobre la base de datos.
 
 import sqlite3
 import os
+import sys
 from datetime import datetime, date, timedelta
 from pathlib import Path
 
@@ -21,9 +22,15 @@ class DatabaseManager:
             db_path: Ruta al archivo de la base de datos. Si es None, se usa la ruta predeterminada.
         """
         if db_path is None:
-            # Usar ruta relativa desde la ubicación del script
-            current_dir = Path(__file__).parent.parent.parent
-            db_path = current_dir / "data" / "facturacion.db"
+            # Determina la ruta del ejecutable si está congelado, o del script si no
+            if getattr(sys, 'frozen', False):
+                # Ruta del ejecutable
+                current_dir = os.path.dirname(sys.executable)
+            else:
+                # Ruta del script
+                current_dir = os.path.dirname(os.path.abspath(__file__))
+            
+            db_path = os.path.join(current_dir, "facturacion.db")
         
         self.db_path = db_path
         self.connection = None
