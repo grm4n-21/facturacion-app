@@ -28,20 +28,15 @@ jobs:
         pip install -r requirements.txt
         pip install pyinstaller
         
-    - name: Build with PyInstaller
-      run: |
-        # Verificar si el archivo spec existe
-        if (Test-Path "facturacion_app.spec") {
+      - name: Build with PyInstaller
+        run: |
+          # Usar directamente tu archivo spec optimizado para onefile
           pyinstaller --clean facturacion_app.spec
-        } else {
-          # Si no existe el archivo spec, crear uno sobre la marcha
-          pyinstaller --name="Sistema de Facturacion" --windowed --add-data="data;data" app/main.py
-        }
       
-    - name: Create ZIP archive
-      run: |
-        Compress-Archive -Path "dist/Sistema de Facturacion" -DestinationPath "Sistema_de_Facturacion_Windows.zip"
-      
+      - name: Create ZIP archive
+        run: |
+          # El ejecutable está directamente en la carpeta dist
+          Compress-Archive -Path "dist/Sistema de Facturacion.exe" -DestinationPath "Sistema_de_Facturacion_Windows.zip" 
     - name: Upload build artifact
       uses: actions/upload-artifact@v4  # Actualizado a v4
       with:
