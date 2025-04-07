@@ -194,37 +194,42 @@ class MainWindow(QMainWindow):
         if indice_editar >= 0:
             self.tabs.setCurrentIndex(indice_editar)
     
+
+    
+            
+
     def verificar_nuevo_dia(self):
-        """Verifica si es un nuevo día y sugiere realizar el cierre del día anterior"""
+        """Verifica si es un nuevo día y muestra el último cierre registrado"""
+        # Obtener si hay cierre para hoy y el último cierre registrado
         hay_cierre, ultimo_cierre = self.cierre_service.verificar_dia_actual()
         
-        # Si no hay cierre para hoy y hay un último cierre (de otro día)
-        if not hay_cierre and ultimo_cierre:
-            fecha_hoy = date.today().isoformat()            
-            # Si el último cierre no es de ayer, significa que hay días sin cerrar
+        # Validar si no hay un último cierre registrado
+        if not ultimo_cierre:
+            QMessageBox.warning(
+                self,
+                "Sin cierres registrados",
+                "No se encontró un cierre previo. Por favor, realice un cierre manual."
+            )
+            return
+        
+        try:
+            # Convertir el último cierre a un objeto date para validaciones adicionales si es necesario
             fecha_ultimo = date.fromisoformat(ultimo_cierre)
-            fecha_ayer = date.today() - timedelta(days=1)
-            
-            if fecha_ultimo < fecha_ayer:
-                # Hay días sin cerrar
-                dias_sin_cerrar = (fecha_hoy - ultimo_cierre).days
-                QMessageBox.warning(
-                    self,
-                    "Días sin cerrar",
-                    f"Se han detectado {dias_sin_cerrar} días sin realizar cierre "
-                    f"desde el último cierre ({ultimo_cierre}).\n\n"
-                    "Se recomienda realizar un cierre de día para mantener "
-                    "la contabilidad ordenada."
-                )
-            elif self.cierre_service.obtener_facturas_sin_cerrar():
-                # Hay facturas sin cerrar del día anterior
-                QMessageBox.information(
-                    self,
-                    "Nuevo Día",
-                    "Bienvenido a un nuevo día.\n\n"
-                    "Hay facturas pendientes del día anterior. "
-                    "¿Desea realizar el cierre del día anterior ahora?"
-                )
+        except ValueError:
+            QMessageBox.critical(
+                self,
+                "Error de formato",
+                f"El último cierre tiene un formato inválido: {ultimo_cierre}"
+            )
+            return
+        
+        # Mostrar el último cierre al usuario
+        QMessageBox.information(
+            self,
+            "Último cierre",
+            f"El último cierre registrado fue el día: {fecha_ultimo.strftime('%d/%m/%Y')}.\n\n"
+            "Puede continuar con las operaciones del día actual."
+        )
     
     def actualizar_fecha(self):
         """Actualiza la etiqueta de fecha cuando cambia el día"""
